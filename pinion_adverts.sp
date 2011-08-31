@@ -97,8 +97,6 @@ public OnPluginStart()
 
 	// Event Hooks
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);
-	HookConVarChange(g_ConVar_motdfile, Event_CvarChange);
-	HookConVarChange(g_ConVar_contentURL, Event_CvarChange);
 
 	//detect the source/ob Game
 	new String:gameName[256];
@@ -143,6 +141,10 @@ public OnPluginStart()
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
 	g_ConVar_Version = CreateConVar("sm_motdredirect_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+
+	// More event hooks for the config files
+	HookConVarChange(g_ConVar_motdfile, Event_CvarChange);
+	HookConVarChange(g_ConVar_contentURL, Event_CvarChange);
 }
 
 // Occurs after round_start
