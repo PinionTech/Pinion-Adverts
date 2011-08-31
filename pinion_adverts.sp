@@ -51,7 +51,7 @@ Changelog
 */
 
 #include <sourcemod>
-#include <sdktools
+#include <sdktools>
 #pragma semicolon 1
 
 enum
@@ -80,7 +80,7 @@ public Plugin:myinfo =
 new Handle:g_ConVar_URL;
 new Handle:g_ConVar_contentURL;
 // Configuration
-new String:g_BaseURL[PLATFORM_MAX_PATH]
+new String:g_BaseURL[PLATFORM_MAX_PATH];
 new Handle:g_ConVar_motdfile;
 new Handle:g_ConVar_Version;
 // Configuration
@@ -149,7 +149,7 @@ public OnPluginStart()
 public OnConfigsExecuted()
 {
 	// Synchronize Cvar Cache after configuration loaded
-	RefreshCvarCache()
+	RefreshCvarCache();
 	// Override config file and work around A2S_RULES bug in linux orange box
 	SetConVarString(g_ConVar_Version, PLUGIN_VERSION);
 }
@@ -157,7 +157,7 @@ public OnConfigsExecuted()
 // Synchronize Cvar Cache when change made
 public Event_CvarChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
-	RefreshCvarCache()
+	RefreshCvarCache();
 	// Contents of motd file now invalid
 	g_motdTimeStamp = -1;
 }
@@ -169,7 +169,7 @@ stock RefreshCvarCache()
 	new hostip = GetConVarInt(FindConVar("hostip"));
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	Format(g_BaseURL, sizeof(g_BaseURL), "%s/%i.%i.%i.%i/%i/", g_BaseURL,
-		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255, hostport)
+		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255, hostport);
 
  	GetConVarString(g_ConVar_motdfile, g_motdfile, sizeof(g_motdfile));
 	GetConVarString(g_ConVar_contentURL, g_URL, sizeof(g_URL));
