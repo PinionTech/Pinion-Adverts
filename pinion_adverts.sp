@@ -216,7 +216,7 @@ public Event_PlayerActive(Handle:event, const String:name[], bool:dontBroadcast)
 // Player Chose Team - Cause page hit
 public Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	if (GetEventInt(event, "team") >= 2)
+	if (GetEventInt(event, "team") >= 1)
 		CreateTimer(0.1, Event_DoPageHit, GetEventInt(event, "userid"));
 }
 
