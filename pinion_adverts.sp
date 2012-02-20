@@ -1,7 +1,8 @@
 /* pinion_adverts.sp
 Name: Pinion Adverts
 Author: LumiStance / Pinion
-Date: 2011 - 07/24
+Contributors: Azelphur
+Date: 2012 - 20/02
 
 Description:
 	Causes client to access a webpage when player has chosen a team.  Left 4 Dead will use
@@ -25,6 +26,8 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
+	1.4.2 <-> 2012 - 20/02 Azelphur
+		Stop adverts when players join the spectator team
 	1.4.1 <-> 2011 - 08/09 LumiStanc
 		Add version CVA
 	1.4 <-> 2011 - 08/05 David Banha
