@@ -210,7 +210,7 @@ public Event_LeftArea(Handle:event, const String:name[], bool:dontBroadcast)
 	if(IsClientInGame(client) && !IsFakeClient(client)) {
 	
 	//EDIT TIMER BELOW
-	CreateTimer(1.0, Event_DoPageHit, GetEventInt(event, "userid"));
+	CreateTimer(1.0, Event_DoPageHit, client);
 		
 	}
 }
@@ -220,7 +220,7 @@ public Event_PlayerActive(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	
 	//EDIT TIMER BELOW
-		CreateTimer(10.0, Event_DoPageHit, GetEventInt(event, "userid"));
+		CreateTimer(10.0, Event_DoPageHit, GetClientOfUserId(GetEventInt(event, "userid")));
 }
 
 // Player Chose Team - Cause page hit
@@ -236,8 +236,7 @@ public Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
 
 public Action:Event_DoPageHit(Handle:timer, any:client)
 {
-	// This event implies client is in-game while GetClientOfUserId() checks IsClientConnected()
-	if (client && !IsFakeClient(client))
+	if (IsClientInGame(client) && !IsFakeClient(client))
 	{
 		decl String:buffer[PLATFORM_MAX_PATH];
 		new offset = strcopy(buffer, sizeof(buffer), g_BaseURL);
