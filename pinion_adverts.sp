@@ -210,7 +210,7 @@ public Event_LeftArea(Handle:event, const String:name[], bool:dontBroadcast)
 	if(IsClientInGame(client) && !IsFakeClient(client)) {
 	
 	//EDIT TIMER BELOW
-	CreateTimer(1.0, Event_DoPageHit, client);
+	CreateTimer(1.0, Event_DoPageHit, GetEventInt(event, "userid"));
 		
 	}
 }
@@ -220,7 +220,7 @@ public Event_PlayerActive(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	
 	//EDIT TIMER BELOW
-		CreateTimer(10.0, Event_DoPageHit, GetClientOfUserId(GetEventInt(event, "userid")));
+		CreateTimer(10.0, Event_DoPageHit, GetEventInt(event, "userid"));
 }
 
 // Player Chose Team - Cause page hit
@@ -231,11 +231,12 @@ public Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
 		return;
 	}
 	if (GetEventInt(event, "team") >= 1)
-		CreateTimer(0.1, Event_DoPageHit, client);
+		CreateTimer(0.1, Event_DoPageHit, GetEventInt(event, "userid"));
 }
 
-public Action:Event_DoPageHit(Handle:timer, any:client)
+public Action:Event_DoPageHit(Handle:timer, any:client_index)
 {
+	new client = GetClientOfUserId(client_index);
 	if (IsClientInGame(client) && !IsFakeClient(client))
 	{
 		decl String:buffer[PLATFORM_MAX_PATH];
