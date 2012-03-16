@@ -91,6 +91,8 @@ new String:g_motdfile[PLATFORM_MAX_PATH];
 new String:g_URL[PLATFORM_MAX_PATH];
 new g_motdTimeStamp = -1;
 
+new bool:g_logged[MAXPLAYERS + 1] = {false, ...};
+
 // Configure Environment
 public OnPluginStart()
 {
@@ -195,6 +197,11 @@ stock RefreshCvarCache()
 	}
 }
 
+public OnClientConnected(client)
+{
+	g_logged[client] = false;
+}
+
 // Player Left Start or Checkpoint - Cause page hit
 public Event_LeftArea(Handle:event, const String:name[], bool:dontBroadcast)
 {
@@ -219,24 +226,29 @@ public Event_PlayerActive(Handle:event, const String:name[], bool:dontBroadcast)
 // Player Chose Team - Cause page hit
 public Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
 {
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if(g_logged[client]) {
+		return;
+	}
 	if (GetEventInt(event, "team") >= 1)
 		CreateTimer(0.1, Event_DoPageHit, GetEventInt(event, "userid"));
 }
 
-public Action:Event_DoPageHit(Handle:timer, any:user_index)
+public Action:Event_DoPageHit(Handle:timer, any:client_index)
 {
-	// This event implies client is in-game while GetClientOfUserId() checks IsClientConnected()
-	new client_index = GetClientOfUserId(user_index);
-	if (client_index && !IsFakeClient(client_index))
+	new client = GetClientOfUserId(client_index);
+	if (IsClientInGame(client) && !IsFakeClient(client))
 	{
 		decl String:buffer[PLATFORM_MAX_PATH];
 		new offset = strcopy(buffer, sizeof(buffer), g_BaseURL);
-		GetClientAuthString(client_index, buffer[offset], sizeof(buffer)-offset);
+		GetClientAuthString(client, buffer[offset], sizeof(buffer)-offset);
 		// Replace colons in SteamID
 		// buffer[offset+7] = '.';
 		// buffer[offset+9] = '.';
-		ShowMOTDPanelEx(client_index, "", buffer, MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		ShowMOTDPanelEx(client, "", buffer, MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	}
+	g_logged[client] = true;
+	return Plugin_Stop;
 }
 
 // Extended ShowMOTDPanel with options for Command and Show
