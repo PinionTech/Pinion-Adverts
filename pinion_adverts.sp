@@ -26,6 +26,14 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
+	1.5.1 <-> 2012 - 5/24 Sam Gentle
+		Made the MOTD hit use a javascript: url
+	1.5 <-> 2012 - 5/24 Mana
+		Removed event hooks, no longer neccesary
+		Blocks current MOTD and replaces it a new
+		Hooks MOTD closed button
+		Plugin now works immediately after being loaded
+		Left legacy code for writing MOTD to file (incase updates break sourcemod)
 	1.4.2 <-> 2012 - 20/02 Azelphur
 		Stop adverts when players join the spectator team
 	1.4.1 <-> 2011 - 08/09 LumiStanc
@@ -69,16 +77,24 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.4-P"
+#define PLUGIN_VERSION "1.5-P"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
 	author = "LumiStance",
-	description = "Has client request url at spawn, also inserts correct configuration values",
+	description = "Replaces MOTD with Pinion adverts",
 	version = PLUGIN_VERSION,
 	url = "http://srcds.lumistance.com/"
 };
 
+// MOTD specific
+new UserMsg:vgui;
+new bool:g_FreeNextVGUI;
+// Game detection
+new bool:g_L4D = false;
+new bool:g_L4D2 = false; //Detecting both separately
+// Delay
+new Handle:g_Timers[MAXPLAYERS+1];
 // Console Variables
 new Handle:g_ConVar_URL;
 new Handle:g_ConVar_contentURL;
@@ -94,6 +110,13 @@ new g_motdTimeStamp = -1;
 // Configure Environment
 public OnPluginStart()
 {
+	// Catch the MOTD
+	vgui = GetUserMessageId("VGUIMenu");
+	HookUserMessage(vgui, OnMsgVGUIMenu, true);
+
+	// Hook the MOTD OK button
+	AddCommandListener(PageClosed, "closed_htmlpage");
+
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdpagehit_url", "", "URL to access on player event", FCVAR_PLUGIN|FCVAR_SPONLY);
 	AutoExecConfig(true, "pinion_adverts");
@@ -101,42 +124,14 @@ public OnPluginStart()
 	// Event Hooks
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 
-	//detect the source/ob Game
-	new String:gameName[256];
-	new String:gameTF2[256];
-	new String:gameL4D2[256];
-	new String:gameCSS[256];
-	new String:gameHL2MP[256];
-	gameHL2MP = "hl2mp";
-	gameTF2 = "tf";
-	gameL4D2 = "left4dead2";
-	gameCSS = "cstrike";
+	// Game Detection
+	new String:gdir[16];
+	GetGameFolderName(gdir, sizeof(gdir));
 	
-	GetGameFolderName(gameName, sizeof(gameName));
+	g_L4D = StrEqual(gdir, "left4dead");
+	g_L4D2 = StrEqual(gdir, "left4dead2");
 	
-	LogMessage("[MOTD Plugin] Found game: %s",gameName);
-
-	//if the game is HL2MP then do a player active Hook 
 	
-	if(StrEqual(gameName,gameHL2MP,false)) {
-				HookEvent("player_activate", Event_PlayerActive);
-			
-				}
-	//if the game is L4D2 then use player left start area hook			
-	else if(StrEqual(gameName,gameL4D2,false)) {
-	
-	// Hook player_left_start_area and player_left_checkpoint for L4D, or player_team otherwise
-	//if (HookEventEx("player_left_start_area", Event_LeftArea))
-	
-		HookEvent("player_left_start_area", Event_LeftArea, EventHookMode_Post);
-		
-		}
-		
-	// if game is css or any other game, use player team event
-	else  {
-		HookEvent("player_team", Event_PlayerTeam);
-		}
-
 	// Specify console variables used to configure plugin
 	g_ConVar_motdfile = FindConVar("motdfile");
 	g_ConVar_contentURL = CreateConVar("sm_motdredirect_url", "", "Target URL to write into motdfile", FCVAR_PLUGIN|FCVAR_SPONLY);
@@ -194,34 +189,13 @@ stock RefreshCvarCache()
 		}
 	}
 }
-
-// Player Left Start or Checkpoint - Cause page hit
-public Event_LeftArea(Handle:event, const String:name[], bool:dontBroadcast)
-{
-
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	if(IsClientInGame(client) && !IsFakeClient(client)) {
-	
-	//EDIT TIMER BELOW
-	CreateTimer(1.0, Event_DoPageHit, GetEventInt(event, "userid"));
-		
-	}
-}
-
-//player active event for HL2MP
-public Event_PlayerActive(Handle:event, const String:name[], bool:dontBroadcast)
-{
-	
-	//EDIT TIMER BELOW
-		CreateTimer(10.0, Event_DoPageHit, GetEventInt(event, "userid"));
-}
-
+/*
 // Player Chose Team - Cause page hit
 public Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if (GetEventInt(event, "team") >= 1)
 		CreateTimer(0.1, Event_DoPageHit, GetEventInt(event, "userid"));
-}
+}*/
 
 public Action:Event_DoPageHit(Handle:timer, any:user_index)
 {
@@ -229,13 +203,14 @@ public Action:Event_DoPageHit(Handle:timer, any:user_index)
 	new client_index = GetClientOfUserId(user_index);
 	if (client_index && !IsFakeClient(client_index))
 	{
-		decl String:buffer[PLATFORM_MAX_PATH];
-		new offset = strcopy(buffer, sizeof(buffer), g_BaseURL);
-		GetClientAuthString(client_index, buffer[offset], sizeof(buffer)-offset);
-		// Replace colons in SteamID
-		// buffer[offset+7] = '.';
-		// buffer[offset+9] = '.';
-		ShowMOTDPanelEx(client_index, "", buffer, MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		decl String:auth[PLATFORM_MAX_PATH];
+		decl String:url[PLATFORM_MAX_PATH];
+		
+		GetClientAuthString(client_index, auth, sizeof(auth));
+		
+		Format(url, sizeof(url), "javascript:pingTracker('%s%s')", g_BaseURL, auth);
+
+		ShowMOTDPanelEx(client_index, "", url, MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	}
 }
 
@@ -252,4 +227,68 @@ stock ShowMOTDPanelEx(client, const String:title[], const String:msg[], type=MOT
 	KvSetNum(Kv, "cmd", cmd);	//http://forums.alliedmods.net/showthread.php?p=1220212
 	ShowVGUIPanel(client, "info", Kv, show);
 	CloseHandle(Kv);
+}
+
+
+public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
+{
+	if (g_FreeNextVGUI)
+	{
+		g_FreeNextVGUI = false;
+		return Plugin_Continue;
+	}
+
+	decl String:buffer[64];
+	BfReadString(bf, buffer, sizeof(buffer));
+	if (strcmp(buffer, "info") != 0)
+		return Plugin_Continue;
+	
+	//Psychonic's plugin was very helpful in learning how to block the right VGUI menu	
+	//https://forums.alliedmods.net/showthread.php?t=147193	
+	
+	else
+	{
+		PrintToServer("Calling it for %d", players[0]);
+		g_Timers[players[0]] = CreateTimer(0.1, LoadPage, players[0]);
+	}
+
+	return Plugin_Handled;
+}
+
+public Action:PageClosed(client, const String:command[], argc)
+{
+	g_FreeNextVGUI = true;	
+
+	//keeping this in userid form incase we still need to hook events in the future for some games
+	new userid = GetClientUserId(client); 
+	CreateTimer(0.1, Event_DoPageHit, userid);
+
+}
+
+public Action:LoadPage(Handle:timer, any:client)
+//public Action:LoadPage(client)
+{
+	g_Timers[client] = INVALID_HANDLE;
+
+	decl String:URL[128];
+	GetConVarString(g_ConVar_contentURL, URL, sizeof(URL));
+
+	new Handle:kv = CreateKeyValues("data");
+
+	if ((g_L4D2) || (g_L4D))
+	{
+		KvSetString(kv, "cmd", "closed_htmlpage");
+	}
+	else
+	KvSetNum(kv, "cmd", MOTDPANEL_CMD_CLOSED_HTMLPAGE);
+
+	KvSetString(kv, "msg",	URL);
+	KvSetNum(kv,    "type",    MOTDPANEL_TYPE_URL);
+
+	g_FreeNextVGUI = true;
+
+        ShowVGUIPanel(client, "info", kv, true);
+	CloseHandle(kv);
+
+	return Plugin_Stop;
 }
