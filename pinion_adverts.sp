@@ -26,6 +26,8 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
+	1.5.2 <-> 2012 - 6/23 gH0sTy
+		Dosn't replace custom MOTD's
 	1.5.1 <-> 2012 - 5/24 Sam Gentle
 		Made the MOTD hit use a javascript: url
 	1.5 <-> 2012 - 5/24 Mana
@@ -239,18 +241,37 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	}
 
 	decl String:buffer[64];
+	decl String:buffer2[256];
+	
 	BfReadString(bf, buffer, sizeof(buffer));
 	if (strcmp(buffer, "info") != 0)
 		return Plugin_Continue;
 	
+	new count = BfReadByte(bf);
 	//Psychonic's plugin was very helpful in learning how to block the right VGUI menu	
 	//https://forums.alliedmods.net/showthread.php?t=147193	
 	
-	else
+	new Handle:kv = CreateKeyValues("data");
+	for (new i = 0; i < count; i++)
 	{
-		PrintToServer("Calling it for %d", players[0]);
-		g_Timers[players[0]] = CreateTimer(0.1, LoadPage, players[0]);
+		BfReadString(bf, buffer, sizeof(buffer));
+		BfReadString(bf, buffer2, sizeof(buffer2));
+		
+		// Don't replace other pages as it would render plugins like webshortcuts or Radio useless
+		if (strcmp(buffer, "customsvr") == 0 || (strcmp(buffer, "msg") == 0 && strcmp(buffer2, "motd") != 0))
+		{
+			CloseHandle(kv);
+			return Plugin_Continue;
+		}
+		
+		KvSetString(kv, buffer, buffer2);
 	}
+	
+	PrintToServer("Calling it for %d", players[0]);
+	new Handle:pack;
+	g_Timers[players[0]] = CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	WritePackCell(pack, GetClientUserId(players[0]));
+	WritePackCell(pack, _:kv);
 
 	return Plugin_Handled;
 }
@@ -265,15 +286,19 @@ public Action:PageClosed(client, const String:command[], argc)
 
 }
 
-public Action:LoadPage(Handle:timer, any:client)
+public Action:LoadPage(Handle:timer, Handle:pack)
 //public Action:LoadPage(client)
 {
+	ResetPack(pack);
+	new client = GetClientOfUserId(ReadPackCell(pack));
+	new Handle:kv = Handle:ReadPackCell(pack);
+	
 	g_Timers[client] = INVALID_HANDLE;
 
 	decl String:URL[128];
 	GetConVarString(g_ConVar_contentURL, URL, sizeof(URL));
 
-	new Handle:kv = CreateKeyValues("data");
+	//new Handle:kv = CreateKeyValues("data");
 
 	if ((g_L4D2) || (g_L4D))
 	{
