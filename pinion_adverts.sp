@@ -269,7 +269,7 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	
 	PrintToServer("Calling it for %d", players[0]);
 	new Handle:pack;
-	g_Timers[players[0]] = CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	g_Timers[players[0]] = CreateDataTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
 	WritePackCell(pack, GetClientUserId(players[0]));
 	WritePackCell(pack, _:kv);
 
