@@ -92,6 +92,7 @@ public Plugin:myinfo =
 // MOTD specific
 new UserMsg:vgui;
 new bool:g_FreeNextVGUI;
+new bool:g_bFirstMOTD[MAXPLAYERS+1] = false;
 // Game detection
 new bool:g_L4D = false;
 new bool:g_L4D2 = false; //Detecting both separately
@@ -156,6 +157,14 @@ public OnConfigsExecuted()
 	SetConVarString(g_ConVar_Version, PLUGIN_VERSION);
 }
 
+public OnClientConnected(client)
+{
+	g_bFirstMOTD[client] = true;
+}
+public OnClientDisconnect(client)
+{
+	g_bFirstMOTD[client] = false;
+}
 // Synchronize Cvar Cache when change made
 public Event_CvarChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
@@ -205,6 +214,7 @@ public Action:Event_DoPageHit(Handle:timer, any:user_index)
 	new client_index = GetClientOfUserId(user_index);
 	if (client_index && !IsFakeClient(client_index))
 	{
+		//PrintToServer("Page Hit for %d", client_index);
 		decl String:auth[PLATFORM_MAX_PATH];
 		decl String:url[PLATFORM_MAX_PATH];
 		
@@ -258,7 +268,7 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 		BfReadString(bf, buffer2, sizeof(buffer2));
 		
 		// Don't replace other pages as it would render plugins like webshortcuts or Radio useless
-		if (strcmp(buffer, "customsvr") == 0 || (strcmp(buffer, "msg") == 0 && strcmp(buffer2, "motd") != 0))
+		if (strcmp(buffer, "customsvr") == 0 || !g_bFirstMOTD[players[0]] || (strcmp(buffer, "msg") == 0 && strcmp(buffer2, "motd") != 0))
 		{
 			CloseHandle(kv);
 			return Plugin_Continue;
@@ -267,11 +277,12 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 		KvSetString(kv, buffer, buffer2);
 	}
 	
-	PrintToServer("Calling it for %d", players[0]);
 	new Handle:pack;
 	g_Timers[players[0]] = CreateDataTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
 	WritePackCell(pack, GetClientUserId(players[0]));
 	WritePackCell(pack, _:kv);
+	
+	//PrintToServer("Calling it for %d", players[0]);
 
 	return Plugin_Handled;
 }
@@ -286,13 +297,14 @@ public Action:PageClosed(client, const String:command[], argc)
 
 }
 
-public Action:LoadPage(Handle:timer, Handle:pack)
+public Action:LoadPage(Handle:hTimer, Handle:pack)
 //public Action:LoadPage(client)
 {
 	ResetPack(pack);
 	new client = GetClientOfUserId(ReadPackCell(pack));
 	new Handle:kv = Handle:ReadPackCell(pack);
 	
+	g_bFirstMOTD[client] = false;
 	g_Timers[client] = INVALID_HANDLE;
 
 	decl String:URL[128];
