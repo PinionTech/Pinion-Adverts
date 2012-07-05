@@ -324,7 +324,9 @@ public Action:LoadPage(Handle:hTimer, Handle:pack)
 
 	g_FreeNextVGUI = true;
 
-        ShowVGUIPanel(client, "info", kv, true);
+	if (client != 0)
+		ShowVGUIPanel(client, "info", kv, true);
+
 	CloseHandle(kv);
 
 	return Plugin_Stop;
