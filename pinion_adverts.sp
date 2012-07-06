@@ -261,6 +261,9 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	//Psychonic's plugin was very helpful in learning how to block the right VGUI menu	
 	//https://forums.alliedmods.net/showthread.php?t=147193	
 	
+	if (count == 0 || !g_bFirstMOTD[players[0]])
+		return Plugin_Continue;
+	
 	new Handle:kv = CreateKeyValues("data");
 	for (new i = 0; i < count; i++)
 	{
@@ -268,7 +271,7 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 		BfReadString(bf, buffer2, sizeof(buffer2));
 		
 		// Don't replace other pages as it would render plugins like webshortcuts or Radio useless
-		if (strcmp(buffer, "customsvr") == 0 || !g_bFirstMOTD[players[0]] || (strcmp(buffer, "msg") == 0 && strcmp(buffer2, "motd") != 0))
+		if (strcmp(buffer, "customsvr") == 0 || (strcmp(buffer, "msg") == 0 && strcmp(buffer2, "motd") != 0))
 		{
 			CloseHandle(kv);
 			return Plugin_Continue;
