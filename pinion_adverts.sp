@@ -26,8 +26,8 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
-	1.5.2 <-> 2012 - 6/23 gH0sTy
-		Dosn't replace custom MOTD's
+	1.5.2 <-> 2012 - 7/14 gH0sTy
+		Don't replace custom VGUI Menues
 	1.5.1 <-> 2012 - 5/24 Sam Gentle
 		Made the MOTD hit use a javascript: url
 	1.5 <-> 2012 - 5/24 Mana
@@ -270,7 +270,6 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 		BfReadString(bf, buffer, sizeof(buffer));
 		BfReadString(bf, buffer2, sizeof(buffer2));
 		
-		// Don't replace other pages as it would render plugins like webshortcuts or Radio useless
 		if (strcmp(buffer, "customsvr") == 0 || (strcmp(buffer, "msg") == 0 && strcmp(buffer2, "motd") != 0))
 		{
 			CloseHandle(kv);
