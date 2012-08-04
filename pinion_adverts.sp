@@ -208,7 +208,7 @@ public Action:Event_DoPageHit(Handle:timer, any:user_index)
 		
 		GetClientAuthString(client_index, auth, sizeof(auth));
 		
-		Format(url, sizeof(url), "javascript:pingTracker('%s%s')", g_BaseURL, auth);
+		Format(url, sizeof(url), "%s%s", g_BaseURL, auth);
 
 		ShowMOTDPanelEx(client_index, "", url, MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	}
