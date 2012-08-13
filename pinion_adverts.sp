@@ -155,9 +155,7 @@ new Handle:g_ConVarCooldown;
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 new Handle:g_ConVar_motdfile;
 // Configuration
-new String:g_motdfile[PLATFORM_MAX_PATH];
 new String:g_URL[PLATFORM_MAX_PATH];
-new g_motdTimeStamp = -1;
 // Cooldown Timer
 new Handle:CooldownTimer[MAXPLAYERS+1];
 new bool:ContinueDisabled[MAXPLAYERS+1];
@@ -281,11 +279,9 @@ public OnConfigsExecuted()
 public Event_CvarChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
 	RefreshCvarCache();
-	// Contents of motd file now invalid
-	g_motdTimeStamp = -1;
 }
 
-stock RefreshCvarCache()
+RefreshCvarCache()
 {
 	// Build and cache url/ip/port string
 	GetConVarString(g_ConVar_URL, g_BaseURL, sizeof(g_BaseURL));
@@ -293,22 +289,30 @@ stock RefreshCvarCache()
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	Format(g_BaseURL, sizeof(g_BaseURL), "%s/%i.%i.%i.%i/%i/", g_BaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255, hostport);
-
-	GetConVarString(g_ConVar_motdfile, g_motdfile, sizeof(g_motdfile));
-	GetConVarString(g_ConVar_contentURL, g_URL, sizeof(g_URL));
-
-	new timestamp = GetFileTime(g_motdfile, FileTime_LastChange);
-	if (g_URL[0] && (g_motdTimeStamp == -1 || g_motdTimeStamp != timestamp))
+	
+	decl String:szMotdFile[PLATFORM_MAX_PATH];
+	GetConVarString(g_ConVar_motdfile, szMotdFile, sizeof(szMotdFile));
+	
+	decl String:szBuffer[sizeof(g_URL)];
+	GetConVarString(g_ConVar_contentURL, szBuffer, sizeof(szBuffer));
+	
+	static lastTimestamp = -1;
+	new timestamp = GetFileTime(szMotdFile, FileTime_LastChange);
+	if (szBuffer[0] && timestamp != lastTimestamp && !strcmp(szBuffer, g_URL))
 	{
-		new Handle:fileh = OpenFile(g_motdfile, "w");
+		strcopy(g_URL, sizeof(g_URL), szBuffer);
+		
+		new Handle:fileh = OpenFile(szMotdFile, "w");
 		if (fileh == INVALID_HANDLE)
-			SetFailState("[lm]Could not open \"%s\"", g_motdfile);
+		{
+			SetFailState("Could not open file \"%s\" for writing", szMotdFile);
+		}
 		else
 		{
-			WriteFileLine(fileh, g_URL);
+			WriteFileLine(fileh, szBuffer);
 			CloseHandle(fileh);
 
-			g_motdTimeStamp = GetFileTime(g_motdfile, FileTime_LastChange);
+			lastTimestamp = GetFileTime(szMotdFile, FileTime_LastChange);
 		}
 	}
 }
