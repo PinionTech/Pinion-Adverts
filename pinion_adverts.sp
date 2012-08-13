@@ -255,8 +255,6 @@ public OnConfigsExecuted()
 {
 	// Synchronize Cvar Cache after configuration loaded
 	RefreshCvarCache();
-	// Override config file and work around A2S_RULES bug in linux orange box
-	SetConVarString(g_ConVar_Version, PLUGIN_VERSION);
 
 	if(g_bEnabled)
 	{
