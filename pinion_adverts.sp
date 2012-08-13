@@ -112,10 +112,10 @@ enum
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
-	author = "LumiStance",
-	description = "Replaces MOTD with Pinion adverts",
+	author = "Multiple contributors",
+	description = "Pinion in-game advertisements helper",
 	version = PLUGIN_VERSION,
-	url = "http://srcds.lumistance.com/"
+	url = "http://www.pinion.gg/"
 };
 
 // MOTD specific
