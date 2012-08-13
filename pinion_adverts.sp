@@ -154,7 +154,6 @@ new Handle:g_ConVarCooldown;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 new Handle:g_ConVar_motdfile;
-new Handle:g_ConVar_Version;
 // Configuration
 new String:g_motdfile[PLATFORM_MAX_PATH];
 new String:g_URL[PLATFORM_MAX_PATH];
@@ -214,7 +213,7 @@ public OnPluginStart()
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
-	g_ConVar_Version = CreateConVar("sm_motdredirect_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("sm_motdredirect_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	// More event hooks for the config files
 	HookConVarChange(g_ConVar_motdfile, Event_CvarChange);
