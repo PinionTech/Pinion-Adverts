@@ -108,7 +108,7 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.5-P"
+#define PLUGIN_VERSION "1.8-pre"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
