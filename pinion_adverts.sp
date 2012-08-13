@@ -79,7 +79,7 @@ Changelog
 #pragma semicolon 1
 
 #define TEAM_SPEC 1
-
+#define MAX_AUTH_LENGTH 64
 
 new g_iTeam[MAXPLAYERS + 1];
 new bool:g_bLoaded[MAXPLAYERS + 1];
@@ -335,7 +335,7 @@ public Action:Event_DoPageHit(Handle:timer, any:user_index)
 	new client_index = GetClientOfUserId(user_index);
 	if (client_index && !IsFakeClient(client_index))
 	{
-		decl String:auth[PLATFORM_MAX_PATH];
+		decl String:auth[MAX_AUTH_LENGTH];
 		decl String:url[PLATFORM_MAX_PATH];
 		
 		GetClientAuthString(client_index, auth, sizeof(auth));
