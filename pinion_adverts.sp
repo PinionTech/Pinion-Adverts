@@ -26,12 +26,14 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
-	1.7 <-> 2012 - 8/8 Mana
+	1.8-pre <-> 2012 - Nicholas Hastings
+		Updated game detection.
+	1.7 <-> 2012 - 8/8 Mana (unreleased)
 		Changed MOTD skip cvar to Enable/Disable option only
 		Added a message notifying players when they can close the MOTD
 		Integrated ForceHTML Plugin:
 		http://forums.alliedmods.net/showthread.php?t=172864
-	1.6 <-> 2012 - 8/1 Mana
+	1.6 <-> 2012 - 8/1 Mana (unreleased)
 		Added a cooldown option for skipping the MOTD.
 		Defaults to 5 seconds of not being able to "close" the MOTD.
 		Added a code option of only hooking the first MOTD, incase it conflicts with other plugins
@@ -120,8 +122,27 @@ public Plugin:myinfo =
 new UserMsg:vgui;
 new bool:g_FreeNextVGUI;
 // Game detection
-new bool:g_L4D = false;
-new bool:g_L4D2 = false; //Detecting both separately
+enum EGame
+{
+	kGameUnsupported = -1,
+	kGameCSS,
+	kGameHL2DM,
+	kGameDODS,
+	kGameTF2,
+	kGameL4D,
+	kGameL4D2,
+	kGameND,
+};
+new const String:g_SupportedGames[EGame][] = {
+	"cstrike",
+	"hl2mp",
+	"dod",
+	"tf",
+	"left4dead",
+	"left4dead2",
+	"nucleardawn"
+};
+new EGame:g_Game = kGameUnsupported;
 // Delay
 new Handle:g_Timers[MAXPLAYERS+1];
 // Only hook the first MOTD
@@ -144,7 +165,28 @@ new bool:ContinueDisabled[MAXPLAYERS+1];
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
+	// Game Detection
+	decl String:szGameDir[32];
+	GetGameFolderName(szGameDir, sizeof(szGameDir));
+	UTIL_StringToLower(szGameDir);
+	
+	for (new i = 0; i < sizeof(g_SupportedGames); ++i)
+	{
+		if (!strcmp(szGameDir, g_SupportedGames[i]))
+		{
+			g_Game = EGame:i;
+			break;
+		}
+	}
+	
+	if (g_Game == kGameUnsupported)
+	{
+		strcopy(error, err_max, "This game is currently not supported. To request support, contact us at http://www.pinion.gg/contact.html");
+		return APLRes_Failure;
+	}
+	
 	g_bLateLoad = late;
+	
 	return APLRes_Success;
 }
 
@@ -163,15 +205,7 @@ public OnPluginStart()
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Event Hooks
-	HookConVarChange(g_ConVar_URL, Event_CvarChange);
-
-	// Game Detection
-	new String:gdir[16];
-	GetGameFolderName(gdir, sizeof(gdir));
-	
-	g_L4D = StrEqual(gdir, "left4dead");
-	g_L4D2 = StrEqual(gdir, "left4dead2");
-	
+	HookConVarChange(g_ConVar_URL, Event_CvarChange);	
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_motdfile = FindConVar("motdfile");
@@ -202,9 +236,7 @@ public OnPluginStart()
 	RegConsoleCmd("sm_motdhelp", Command_Help);
 	HookEvent("player_team", Event_OnPlayerTeam, EventHookMode_Pre);
 
-	decl String:_sGame[32];
-	GetGameFolderName(_sGame, sizeof(_sGame));
-	if(StrEqual(_sGame, "cstrike", false))
+	if (g_Game == kGameCSS)
 	{
 		AddCommandListener(Command_Join, "jointeam");
 		AddCommandListener(Command_Join, "joinclass");
@@ -212,8 +244,10 @@ public OnPluginStart()
 	
 	g_bEnabled = GetConVarBool(g_hEnabled);
 	g_fRate = GetConVarFloat(g_hRate);
-	GetConVarString(g_hFlag, _sGame, sizeof(_sGame));
-	g_iFlag = strlen(_sGame) ? ReadFlagString(_sGame) : 0;
+	
+	decl String:szBuffer[32];
+	GetConVarString(g_hFlag, szBuffer, sizeof(szBuffer));
+	g_iFlag = szBuffer[0] ? ReadFlagString(szBuffer) : 0;
 }
 
 // Occurs after round_start
@@ -395,7 +429,7 @@ public Action:LoadPage(Handle:timer, any:client)
 
 	new Handle:kv = CreateKeyValues("data");
 
-	if ((g_L4D2) || (g_L4D))
+	if (g_Game == kGameL4D || g_Game == kGameL4D2)
 	{
 		KvSetString(kv, "cmd", "closed_htmlpage");
 	}
@@ -622,5 +656,14 @@ public OnSettingsChange(Handle:cvar, const String:oldvalue[], const String:newva
 		decl String:_sBuffer[32];
 		strcopy(_sBuffer, sizeof(_sBuffer), newvalue);
 		g_iFlag = ReadFlagString(_sBuffer);
+	}
+}
+
+stock UTIL_StringToLower(String:szInput[])
+{
+	new i = 0, c;
+	while ((c = szInput[i]) != 0)
+	{
+		szInput[i++] = CharToLower(c);
 	}
 }
