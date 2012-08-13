@@ -349,12 +349,10 @@ public Action:Event_DoPageHit(Handle:timer, any:user_index)
 // Extended ShowMOTDPanel with options for Command and Show
 stock ShowMOTDPanelEx(client, const String:title[], const String:msg[], type=MOTDPANEL_TYPE_INDEX, cmd=MOTDPANEL_CMD_NONE, bool:show=true)
 {
-	decl String:szType[3];
 	new Handle:Kv = CreateKeyValues("data");
-	IntToString(type, szType, sizeof(szType));
 
 	KvSetString(Kv, "title", title);
-	KvSetString(Kv, "type", szType);
+	KvSetNum(Kv, "type", type);
 	KvSetString(Kv, "msg", msg);
 	KvSetNum(Kv, "cmd", cmd);	//http://forums.alliedmods.net/showthread.php?p=1220212
 	ShowVGUIPanel(client, "info", Kv, show);
