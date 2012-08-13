@@ -410,13 +410,13 @@ public Action:LoadPage(Handle:timer, any:client)
 
 	new Handle:kv = CreateKeyValues("data");
 
-	if (g_Game == kGameL4D || g_Game == kGameL4D2)
+	if (BGameUsesVGUIEnum())
 	{
-		KvSetString(kv, "cmd", "closed_htmlpage");
+		KvSetNum(kv, "cmd", MOTDPANEL_CMD_CLOSED_HTMLPAGE);
 	}
 	else
 	{
-		KvSetNum(kv, "cmd", MOTDPANEL_CMD_CLOSED_HTMLPAGE);
+		KvSetString(kv, "cmd", "closed_htmlpage");
 	}
 
 	if(!ContinueDisabled[client])
@@ -651,4 +651,16 @@ stock UTIL_StringToLower(String:szInput[])
 	{
 		szInput[i++] = CharToLower(c);
 	}
+}
+
+// Right now, more supported games use this than not,
+//   however, it's still used in less total games.
+stock bool:BGameUsesVGUIEnum()
+{
+	return g_Game == kGameCSS
+		|| g_Game == kGameTF2
+		|| g_Game == kGameDODS
+		|| g_Game == kGameHL2DM
+		|| g_Game == kGameND
+		;
 }
