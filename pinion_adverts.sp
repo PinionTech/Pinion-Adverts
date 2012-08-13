@@ -297,7 +297,7 @@ stock RefreshCvarCache()
 	Format(g_BaseURL, sizeof(g_BaseURL), "%s/%i.%i.%i.%i/%i/", g_BaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255, hostport);
 
- 	GetConVarString(g_ConVar_motdfile, g_motdfile, sizeof(g_motdfile));
+	GetConVarString(g_ConVar_motdfile, g_motdfile, sizeof(g_motdfile));
 	GetConVarString(g_ConVar_contentURL, g_URL, sizeof(g_URL));
 
 	new timestamp = GetFileTime(g_motdfile, FileTime_LastChange);
@@ -315,14 +315,6 @@ stock RefreshCvarCache()
 		}
 	}
 }
-/*
-// Player Chose Team - Cause page hit
-public Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
-{
-	if (GetEventInt(event, "team") >= 1)
-		CreateTimer(0.1, Event_DoPageHit, GetEventInt(event, "userid"));
-}*/
-
 
 public OnClientPostAdminCheck(client)
 {
@@ -377,7 +369,6 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 		return Plugin_Continue;
 	}
 
-
 	if(!g_FirstMOTD[players[0]])
 	{
 		return Plugin_Continue;
@@ -388,39 +379,32 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	if (strcmp(buffer, "info") != 0)
 		return Plugin_Continue;
 	
-	//Psychonic's plugin was very helpful in learning how to block the right VGUI menu	
-	//https://forums.alliedmods.net/showthread.php?t=147193	
-	
-	else
-	{
-		PrintToServer("Calling it for %d", players[0]);
-		g_Timers[players[0]] = CreateTimer(0.1, LoadPage, players[0]);
-	}
+	PrintToServer("Calling it for %d", players[0]);
+	g_Timers[players[0]] = CreateTimer(0.1, LoadPage, players[0]);
 
 	return Plugin_Handled;
 }
 
 public Action:PageClosed(client, const String:command[], argc)
 {
-	g_FreeNextVGUI = true;	
-		
+	g_FreeNextVGUI = true;
+	
 	g_FirstMOTD[client] = true;
 	
 	if(ContinueDisabled[client])
-		//g_Timers[client] = CreateTimer(0.00000001, LoadPage, client);
+	{
 		LoadPage(INVALID_HANDLE, client);
-
+	}
 	else
 	{
-	//keeping this in userid form incase we still need to hook events in the future for some games
-	new userid = GetClientUserId(client); 
-	CreateTimer(0.1, Event_DoPageHit, userid);
+		//keeping this in userid form incase we still need to hook events in the future for some games
+		new userid = GetClientUserId(client); 
+		CreateTimer(0.1, Event_DoPageHit, userid);
 	}
 
 }
 
 public Action:LoadPage(Handle:timer, any:client)
-//public Action:LoadPage(client)
 {
 	g_Timers[client] = INVALID_HANDLE;
 
@@ -434,20 +418,18 @@ public Action:LoadPage(Handle:timer, any:client)
 		KvSetString(kv, "cmd", "closed_htmlpage");
 	}
 	else
-	KvSetNum(kv, "cmd", MOTDPANEL_CMD_CLOSED_HTMLPAGE);
-
-	//if(ContinueDisabled[client])
-	//KvSetString(kv, "msg",	"");
-	//else
+	{
+		KvSetNum(kv, "cmd", MOTDPANEL_CMD_CLOSED_HTMLPAGE);
+	}
 
 	if(!ContinueDisabled[client])
-	KvSetString(kv, "msg",	URL);
+		KvSetString(kv, "msg",	URL);
 
 	KvSetNum(kv,    "type",    MOTDPANEL_TYPE_URL);
 
 	g_FreeNextVGUI = true;
 
-        ShowVGUIPanel(client, "info", kv, true);
+	ShowVGUIPanel(client, "info", kv, true);
 	CloseHandle(kv);
 
 	ContinueDisabled[client] = true;
@@ -529,7 +511,9 @@ public ConVar_QueryClient(QueryCookie:cookie, client, ConVarQueryResult:result, 
 				}
 			}
 			else if(g_bDisabled[client] && g_iTeam[client] > TEAM_SPEC)
+			{
 				ChangeClientTeam(client, TEAM_SPEC);
+			}
 		}
 
 		g_hTimer_Query[client] = CreateTimer(g_fRate, Timer_QueryClient, client);
@@ -648,9 +632,13 @@ public MenuHandler_Main(Handle:menu, MenuAction:action, param1, param2)
 public OnSettingsChange(Handle:cvar, const String:oldvalue[], const String:newvalue[])
 {
 	if(cvar == g_hEnabled)
+	{
 		g_bEnabled = StringToInt(newvalue) ? true : false;
+	}
 	else if(cvar == g_hRate)
+	{
 		g_fRate = StringToFloat(newvalue);
+	}
 	else if(cvar == g_hFlag)
 	{
 		decl String:_sBuffer[32];
