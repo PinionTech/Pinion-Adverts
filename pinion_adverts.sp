@@ -119,7 +119,6 @@ public Plugin:myinfo =
 };
 
 // MOTD specific
-new UserMsg:vgui;
 new bool:g_FreeNextVGUI;
 // Game detection
 enum EGame
@@ -191,8 +190,11 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 public OnPluginStart()
 {
 	// Catch the MOTD
-	vgui = GetUserMessageId("VGUIMenu");
-	HookUserMessage(vgui, OnMsgVGUIMenu, true);
+	new UserMsg:VGUIMenu = GetUserMessageId("VGUIMenu");
+	if (VGUIMenu == INVALID_MESSAGE_ID)
+		SetFailState("Failed to find VGUIMenu usermessage");
+	
+	HookUserMessage(VGUIMenu, OnMsgVGUIMenu, true);
 
 	// Hook the MOTD OK button
 	AddCommandListener(PageClosed, "closed_htmlpage");
