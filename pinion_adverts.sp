@@ -137,9 +137,6 @@ new Handle:g_ConVar_contentURL;
 new Handle:g_ConVarCooldown;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
-new Handle:g_ConVar_motdfile;
-// Configuration
-new String:g_URL[PLATFORM_MAX_PATH];
 // Cooldown Timer
 new Handle:CooldownTimer[MAXPLAYERS+1];
 new bool:ContinueDisabled[MAXPLAYERS+1];
@@ -190,7 +187,6 @@ public OnPluginStart()
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);	
 	
 	// Specify console variables used to configure plugin
-	g_ConVar_motdfile = FindConVar("motdfile");
 	g_ConVar_contentURL = CreateConVar("sm_motdredirect_url", "", "Target URL to write into motdfile", FCVAR_PLUGIN|FCVAR_SPONLY);
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	AutoExecConfig(true, "pinion_adverts");
@@ -199,7 +195,6 @@ public OnPluginStart()
 	CreateConVar("sm_motdredirect_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	// More event hooks for the config files
-	HookConVarChange(g_ConVar_motdfile, Event_CvarChange);
 	HookConVarChange(g_ConVar_contentURL, Event_CvarChange);
 }
 
@@ -224,32 +219,6 @@ RefreshCvarCache()
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	Format(g_BaseURL, sizeof(g_BaseURL), "%s/%i.%i.%i.%i/%i/", g_BaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255, hostport);
-	
-	decl String:szMotdFile[PLATFORM_MAX_PATH];
-	GetConVarString(g_ConVar_motdfile, szMotdFile, sizeof(szMotdFile));
-	
-	decl String:szBuffer[sizeof(g_URL)];
-	GetConVarString(g_ConVar_contentURL, szBuffer, sizeof(szBuffer));
-	
-	static lastTimestamp = -1;
-	new timestamp = GetFileTime(szMotdFile, FileTime_LastChange);
-	if (szBuffer[0] && timestamp != lastTimestamp && !strcmp(szBuffer, g_URL))
-	{
-		strcopy(g_URL, sizeof(g_URL), szBuffer);
-		
-		new Handle:fileh = OpenFile(szMotdFile, "w");
-		if (fileh == INVALID_HANDLE)
-		{
-			SetFailState("Could not open file \"%s\" for writing", szMotdFile);
-		}
-		else
-		{
-			WriteFileLine(fileh, szBuffer);
-			CloseHandle(fileh);
-
-			lastTimestamp = GetFileTime(szMotdFile, FileTime_LastChange);
-		}
-	}
 }
 
 public OnClientConnected(client)
