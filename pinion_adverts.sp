@@ -180,14 +180,14 @@ public OnPluginStart()
 	AddCommandListener(PageClosed, "closed_htmlpage");
 
 	// Specify console variables used to configure plugin
-	g_ConVar_URL = CreateConVar("sm_motdpagehit_url", "", "URL to access on player event", FCVAR_PLUGIN|FCVAR_SPONLY);
+	g_ConVar_URL = CreateConVar("sm_motdpagehit_url", "", "URL to access on player event");
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Event Hooks
-	HookConVarChange(g_ConVar_URL, Event_CvarChange);	
+	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 	
 	// Specify console variables used to configure plugin
-	g_ConVar_contentURL = CreateConVar("sm_motdredirect_url", "", "Target URL to write into motdfile", FCVAR_PLUGIN|FCVAR_SPONLY);
+	g_ConVar_contentURL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	AutoExecConfig(true, "pinion_adverts");
 
