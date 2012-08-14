@@ -103,8 +103,10 @@ public Plugin:myinfo =
 	url = "http://www.pinion.gg/"
 };
 
-// MOTD specific
-new bool:g_FreeNextVGUI;
+// Approximately 5 seconds from MotD display.
+// Time starts from player_activate, a few seconds after Motd is sent, but a few seconds before it actually loads
+#define WAIT_TIME 7
+
 // Game detection
 enum EGame
 {
@@ -127,21 +129,22 @@ new const String:g_SupportedGames[EGame][] = {
 	"nucleardawn"
 };
 new EGame:g_Game = kGameUnsupported;
-// Delay
-new Handle:g_Timers[MAXPLAYERS+1];
-// Only hook the first MOTD
-new bool:g_FirstMOTD[MAXPLAYERS+1];
 // Console Variables
 new Handle:g_ConVar_URL;
 new Handle:g_ConVar_contentURL;
 new Handle:g_ConVarCooldown;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
-// Cooldown Timer
-new Handle:CooldownTimer[MAXPLAYERS+1];
-new bool:ContinueDisabled[MAXPLAYERS+1];
 
-new bool:g_bDoneWithAd[MAXPLAYERS+1];
+enum EPlayerState
+{
+	kAwaitingAd,
+	kViewingAd,
+	kAdClosing,
+	kAdDone,
+}
+new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
+new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
@@ -198,6 +201,14 @@ public OnPluginStart()
 
 	// More event hooks for the config files
 	HookConVarChange(g_ConVar_contentURL, Event_CvarChange);
+	
+	HookEvent("player_activate", Event_PlayerActivate);
+	
+	for (new i = 1; i <= MaxClients; ++i)
+	{
+		if (IsClientInGame(i))
+			ChangeState(i, kAdDone);
+	}
 }
 
 // Occurs after round_start
@@ -225,9 +236,8 @@ RefreshCvarCache()
 
 public OnClientConnected(client)
 {
-	g_FirstMOTD[client] = true;
-	ContinueDisabled[client] = false;
-	g_bDoneWithAd[client] = false;
+	ChangeState(client,  kAwaitingAd);
+	g_bPlayerActivated[client] = false;
 }
 
 public Action:Event_DoPageHit(Handle:timer, any:user_index)
@@ -260,16 +270,17 @@ stock ShowMOTDPanelEx(client, const String:title[], const String:msg[], type=MOT
 	CloseHandle(Kv);
 }
 
+public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	g_bPlayerActivated[client] = true;
+}
+
 
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
-	if (g_FreeNextVGUI)
-	{
-		g_FreeNextVGUI = false;
-		return Plugin_Continue;
-	}
-
-	if(!g_FirstMOTD[players[0]])
+	new client = players[0];
+	if (playersNum > 1 || GetState(client) != kAwaitingAd)
 	{
 		return Plugin_Continue;
 	}
@@ -277,39 +288,50 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	decl String:buffer[64];
 	BfReadString(bf, buffer, sizeof(buffer));
 	if (strcmp(buffer, "info") != 0)
+	{
 		return Plugin_Continue;
+	}
 	
-	g_Timers[players[0]] = CreateTimer(0.1, LoadPage, players[0]);
+	CreateTimer(0.1, LoadPage, players[0]);
 
 	return Plugin_Handled;
 }
 
 public Action:PageClosed(client, const String:command[], argc)
 {
-	g_FreeNextVGUI = true;
-	
-	g_FirstMOTD[client] = true;
-	g_bDoneWithAd[client] = true;
-	
-	if(ContinueDisabled[client])
+	switch (GetState(client))
 	{
-		LoadPage(INVALID_HANDLE, client);
+		case kAdDone:
+		{
+			return Plugin_Handled;
+		}
+		case kViewingAd:
+		{
+			LoadPage(INVALID_HANDLE, client);
+		}
+		case kAdClosing:
+		{
+			//keeping this in userid form incase we still need to hook events in the future for some games
+			ChangeState(client, kAdDone);
+			new userid = GetClientUserId(client); 
+			CreateTimer(0.1, Event_DoPageHit, userid);
+			
+			// Do the actual intended motd 'cmd' now that we're done capturing close.
+			switch (g_Game)
+			{
+				case kGameCSS:
+					FakeClientCommand(client, "joingame");
+				case kGameDODS:
+					ClientCommand(client, "changeteam");
+			}
+		}
 	}
-	else
-	{
-		//keeping this in userid form incase we still need to hook events in the future for some games
-		g_bDoneWithAd[client] = true;
-		new userid = GetClientUserId(client); 
-		CreateTimer(0.1, Event_DoPageHit, userid);
-	}
-
+	
+	return Plugin_Handled;
 }
 
 public Action:LoadPage(Handle:timer, any:client)
 {
-	g_Timers[client] = INVALID_HANDLE;
-	g_bDoneWithAd[client] = false;
-
 	decl String:URL[128];
 	GetConVarString(g_ConVar_contentURL, URL, sizeof(URL));
 
@@ -324,31 +346,61 @@ public Action:LoadPage(Handle:timer, any:client)
 		KvSetString(kv, "cmd", "closed_htmlpage");
 	}
 
-	if(!ContinueDisabled[client])
+	if (GetState(client) != kViewingAd)
+	{
 		KvSetString(kv, "msg",	URL);
+	}
+	
+	ChangeState(client, kViewingAd);
 
 	KvSetNum(kv,    "type",    MOTDPANEL_TYPE_URL);
 
-	g_FreeNextVGUI = true;
-
 	ShowVGUIPanel(client, "info", kv, true);
 	CloseHandle(kv);
-
-	ContinueDisabled[client] = true;
 	
 	if(GetConVarFloat(g_ConVarCooldown))
 	{
-		CooldownTimer[client] = CreateTimer(5.0, Timer_Restrict, client, TIMER_FLAG_NO_MAPCHANGE);
-		PrintCenterText(client, "You can close the MOTD in 5 seconds.");
+		new Handle:data;
+		CreateDataTimer(0.25, Timer_Restrict, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+		WritePackCell(data, GetClientSerial(client));
+		WritePackFloat(data, GetGameTime());
 	}
 	
 	return Plugin_Stop;
 }
 
-public Action:Timer_Restrict(Handle:timer, any:client)
+public Action:Timer_Restrict(Handle:timer, Handle:data)
 {
-	ContinueDisabled[client] = false;
-	CooldownTimer[client] = INVALID_HANDLE;
+	ResetPack(data);
+	
+	new client = GetClientFromSerial(ReadPackCell(data));
+	if (client == 0)
+		return Plugin_Stop;
+	
+	if (!g_bPlayerActivated[client])
+		return Plugin_Continue;
+	
+	new Float:flStartTime = ReadPackFloat(data);
+	new timeleft = WAIT_TIME - RoundToFloor(GetGameTime() - flStartTime);
+	if (timeleft > 0)
+	{
+		PrintCenterText(client, "You may close the MOTD in %d seconds.", timeleft);
+		return Plugin_Continue;
+	}
+	
+	ChangeState(client, kAdClosing);
+	
+	return Plugin_Stop;
+}
+
+EPlayerState:GetState(client)
+{
+	return g_PlayerState[client];
+}
+
+ChangeState(client, EPlayerState:newState)
+{
+	g_PlayerState[client] = newState;
 }
 
 stock UTIL_StringToLower(String:szInput[])
