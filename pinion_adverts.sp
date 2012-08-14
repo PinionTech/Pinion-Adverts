@@ -356,20 +356,20 @@ public Action:LoadPage(Handle:timer, any:client)
 		KvSetString(kv, "msg",	URL);
 	}
 	
-	ChangeState(client, kViewingAd);
-
 	KvSetNum(kv,    "type",    MOTDPANEL_TYPE_URL);
 
 	ShowVGUIPanel(client, "info", kv, true);
 	CloseHandle(kv);
 	
-	if(GetConVarFloat(g_ConVarCooldown))
+	if (GetState(client) != kViewingAd && GetConVarFloat(g_ConVarCooldown))
 	{
 		new Handle:data;
 		CreateDataTimer(0.25, Timer_Restrict, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 		WritePackCell(data, GetClientSerial(client));
 		WritePackFloat(data, GetGameTime());
 	}
+	
+	ChangeState(client, kViewingAd);
 	
 	return Plugin_Stop;
 }
