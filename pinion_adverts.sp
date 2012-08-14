@@ -28,6 +28,11 @@ Configuration Variables (Change in motdpagehit.cfg):
 Changelog
 	1.8-pre <-> 2012 - Nicholas Hastings
 		Updated game detection.
+		Temporarily reverted ForceHTML plugin integration.
+		Fixed team join issues in CS:S and DOD:S.
+		Fixed player hits conflicting with some other MotD plugins.
+		Specified motdfile (motd.txt) no longer gets clobbered. (!motd will show your specified MotD).
+		Various other cleanup, error fixing, and error checks.
 	1.7 <-> 2012 - 8/8 Mana (unreleased)
 		Changed MOTD skip cvar to Enable/Disable option only
 		Added a message notifying players when they can close the MOTD
