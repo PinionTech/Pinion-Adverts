@@ -224,7 +224,7 @@ RefreshCvarCache()
 public OnClientConnected(client)
 {
 	g_FirstMOTD[client] = true;
-
+	ContinueDisabled[client] = false;
 }
 
 public Action:Event_DoPageHit(Handle:timer, any:user_index)
