@@ -276,7 +276,6 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	if (strcmp(buffer, "info") != 0)
 		return Plugin_Continue;
 	
-	PrintToServer("Calling it for %d", players[0]);
 	g_Timers[players[0]] = CreateTimer(0.1, LoadPage, players[0]);
 
 	return Plugin_Handled;
