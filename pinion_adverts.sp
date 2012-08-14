@@ -141,6 +141,8 @@ new String:g_BaseURL[PLATFORM_MAX_PATH];
 new Handle:CooldownTimer[MAXPLAYERS+1];
 new bool:ContinueDisabled[MAXPLAYERS+1];
 
+new bool:g_bDoneWithAd[MAXPLAYERS+1];
+
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
 	// Game Detection
@@ -225,6 +227,7 @@ public OnClientConnected(client)
 {
 	g_FirstMOTD[client] = true;
 	ContinueDisabled[client] = false;
+	g_bDoneWithAd[client] = false;
 }
 
 public Action:Event_DoPageHit(Handle:timer, any:user_index)
@@ -286,6 +289,7 @@ public Action:PageClosed(client, const String:command[], argc)
 	g_FreeNextVGUI = true;
 	
 	g_FirstMOTD[client] = true;
+	g_bDoneWithAd[client] = true;
 	
 	if(ContinueDisabled[client])
 	{
@@ -294,6 +298,7 @@ public Action:PageClosed(client, const String:command[], argc)
 	else
 	{
 		//keeping this in userid form incase we still need to hook events in the future for some games
+		g_bDoneWithAd[client] = true;
 		new userid = GetClientUserId(client); 
 		CreateTimer(0.1, Event_DoPageHit, userid);
 	}
@@ -303,6 +308,7 @@ public Action:PageClosed(client, const String:command[], argc)
 public Action:LoadPage(Handle:timer, any:client)
 {
 	g_Timers[client] = INVALID_HANDLE;
+	g_bDoneWithAd[client] = false;
 
 	decl String:URL[128];
 	GetConVarString(g_ConVar_contentURL, URL, sizeof(URL));
