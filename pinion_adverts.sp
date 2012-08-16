@@ -123,6 +123,7 @@ enum EGame
 	kGameL4D,
 	kGameL4D2,
 	kGameND,
+	kGameCSGO,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -131,7 +132,8 @@ new const String:g_SupportedGames[EGame][] = {
 	"tf",
 	"left4dead",
 	"left4dead2",
-	"nucleardawn"
+	"nucleardawn",
+	"csgo"
 };
 new EGame:g_Game = kGameUnsupported;
 // Console Variables
