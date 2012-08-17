@@ -79,7 +79,6 @@ Changelog
 
 #include <sourcemod>
 #include <sdktools>
-#include <colors>
 
 #pragma semicolon 1
 
