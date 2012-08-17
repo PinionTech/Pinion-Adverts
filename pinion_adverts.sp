@@ -137,7 +137,6 @@ new const String:g_SupportedGames[EGame][] = {
 new EGame:g_Game = kGameUnsupported;
 // Console Variables
 new Handle:g_ConVar_URL;
-new Handle:g_ConVar_contentURL;
 new Handle:g_ConVarCooldown;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
@@ -189,16 +188,9 @@ public OnPluginStart()
 
 	// Hook the MOTD OK button
 	AddCommandListener(PageClosed, "closed_htmlpage");
-
-	// Specify console variables used to configure plugin
-	g_ConVar_URL = CreateConVar("sm_motdpagehit_url", "", "URL to access on player event");
-	AutoExecConfig(true, "pinion_adverts");
-
-	// Event Hooks
-	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 	
 	// Specify console variables used to configure plugin
-	g_ConVar_contentURL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
+	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	AutoExecConfig(true, "pinion_adverts");
 
@@ -206,7 +198,8 @@ public OnPluginStart()
 	CreateConVar("sm_motdredirect_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	// More event hooks for the config files
-	HookConVarChange(g_ConVar_contentURL, Event_CvarChange);
+	RefreshCvarCache();
+	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 	
 	HookEvent("player_activate", Event_PlayerActivate);
 	
@@ -233,11 +226,16 @@ public Event_CvarChange(Handle:convar, const String:oldValue[], const String:new
 RefreshCvarCache()
 {
 	// Build and cache url/ip/port string
-	GetConVarString(g_ConVar_URL, g_BaseURL, sizeof(g_BaseURL));
+	decl String:szInitialBaseURL[128];
+	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
+	
 	new hostip = GetConVarInt(FindConVar("hostip"));
 	new hostport = GetConVarInt(FindConVar("hostport"));
-	Format(g_BaseURL, sizeof(g_BaseURL), "%s/%i.%i.%i.%i/%i/", g_BaseURL,
-		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255, hostport);
+	
+	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&port=%d", 
+		szInitialBaseURL,
+		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
+		hostport);
 }
 
 public OnClientConnected(client)
@@ -252,14 +250,7 @@ public Action:Event_DoPageHit(Handle:timer, any:user_index)
 	new client_index = GetClientOfUserId(user_index);
 	if (client_index && !IsFakeClient(client_index))
 	{
-		decl String:auth[MAX_AUTH_LENGTH];
-		decl String:url[PLATFORM_MAX_PATH];
-		
-		GetClientAuthString(client_index, auth, sizeof(auth));
-		
-		Format(url, sizeof(url), "javascript:pingTracker('%s%s')", g_BaseURL, auth);
-
-		ShowMOTDPanelEx(client_index, "", url, MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		ShowMOTDPanelEx(client_index, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	}
 }
 
@@ -337,9 +328,12 @@ public Action:PageClosed(client, const String:command[], argc)
 }
 
 public Action:LoadPage(Handle:timer, any:client)
-{
-	decl String:URL[128];
-	GetConVarString(g_ConVar_contentURL, URL, sizeof(URL));
+{	
+	decl String:szAuth[MAX_AUTH_LENGTH];
+	GetClientAuthString(client, szAuth, sizeof(szAuth));
+	
+	decl String:szURL[128];
+	Format(szURL, sizeof(szURL), "%s&steamid=%s", g_BaseURL, szAuth);
 
 	new Handle:kv = CreateKeyValues("data");
 
@@ -354,7 +348,7 @@ public Action:LoadPage(Handle:timer, any:client)
 
 	if (GetState(client) != kViewingAd)
 	{
-		KvSetString(kv, "msg",	URL);
+		KvSetString(kv, "msg",	szURL);
 	}
 	
 	KvSetNum(kv,    "type",    MOTDPANEL_TYPE_URL);
