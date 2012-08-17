@@ -329,12 +329,6 @@ public Action:PageClosed(client, const String:command[], argc)
 
 public Action:LoadPage(Handle:timer, any:client)
 {	
-	decl String:szAuth[MAX_AUTH_LENGTH];
-	GetClientAuthString(client, szAuth, sizeof(szAuth));
-	
-	decl String:szURL[128];
-	Format(szURL, sizeof(szURL), "%s&steamid=%s", g_BaseURL, szAuth);
-
 	new Handle:kv = CreateKeyValues("data");
 
 	if (BGameUsesVGUIEnum())
@@ -348,6 +342,12 @@ public Action:LoadPage(Handle:timer, any:client)
 
 	if (GetState(client) != kViewingAd)
 	{
+		decl String:szAuth[MAX_AUTH_LENGTH];
+		GetClientAuthString(client, szAuth, sizeof(szAuth));
+		
+		decl String:szURL[128];
+		Format(szURL, sizeof(szURL), "%s&steamid=%s", g_BaseURL, szAuth);
+		
 		KvSetString(kv, "msg",	szURL);
 	}
 	
