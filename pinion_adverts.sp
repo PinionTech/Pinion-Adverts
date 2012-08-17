@@ -326,7 +326,7 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSS:
+				case kGameCSS, kGameCSGO:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS:
 					ClientCommand(client, "changeteam");
@@ -428,5 +428,6 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameDODS
 		|| g_Game == kGameHL2DM
 		|| g_Game == kGameND
+		|| g_Game == kGameCSGO
 		;
 }
