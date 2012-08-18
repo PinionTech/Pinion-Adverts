@@ -277,7 +277,7 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
 	new client = players[0];
-	if (playersNum > 1 || GetState(client) != kAwaitingAd)
+	if (playersNum > 1 || IsFakeClient(client) || GetState(client) != kAwaitingAd)
 	{
 		return Plugin_Continue;
 	}
