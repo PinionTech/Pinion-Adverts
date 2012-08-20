@@ -289,7 +289,8 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
 	new client = players[0];
-	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client) || GetState(client) != kAwaitingAd)
+	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client)
+		|| (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
 	{
 		return Plugin_Continue;
 	}
@@ -372,8 +373,8 @@ public Action:LoadPage(Handle:timer, any:client)
 	}
 	
 	KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
-
-	ShowVGUIPanel(client, "info", kv, true);
+	
+	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
 	if (g_Game != kGameCSGO && GetState(client) != kViewingAd && GetConVarFloat(g_ConVarCooldown))
@@ -391,6 +392,52 @@ public Action:LoadPage(Handle:timer, any:client)
 	
 	
 	return Plugin_Stop;
+}
+
+ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show=true, usermessageFlags=0)
+{
+	new Handle:bf = StartMessageOne("VGUIMenu", client, usermessageFlags);
+	BfWriteString(bf, name);
+	BfWriteByte(bf, show);
+	
+	if (kv == INVALID_HANDLE)
+	{
+		BfWriteByte(bf, 0);
+	}
+	else
+	{	
+		if (!KvGotoFirstSubKey(kv, false))
+		{
+			BfWriteByte(bf, 0);
+		}
+		else
+		{
+			new keyCount = 0;
+			do
+			{
+				++keyCount;
+			} while (KvGotoNextKey(kv, false));
+			
+			BfWriteByte(bf, keyCount);
+			
+			if (keyCount > 0)
+			{
+				KvGoBack(kv);
+				KvGotoFirstSubKey(kv, false);
+				do
+				{
+					decl String:key[128], String:value[128];
+					KvGetSectionName(kv, key, sizeof(key));
+					KvGetString(kv, NULL_STRING, value, sizeof(value), "");
+					
+					BfWriteString(bf, key);
+					BfWriteString(bf, value);
+				} while (KvGotoNextKey(kv, false));
+			}
+		}
+	}
+	
+	EndMessage();
 }
 
 public Action:Timer_Restrict(Handle:timer, Handle:data)
