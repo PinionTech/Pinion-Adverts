@@ -28,6 +28,7 @@ Configuration Variables (Change in motdpagehit.cfg):
 Changelog
 	1.8-pre <-> 2012 - Nicholas Hastings
 		Updated game detection.
+		Added support for CS:GO.
 		Temporarily reverted ForceHTML plugin integration.
 		Fixed team join issues in CS:S and DOD:S.
 		Fixed player hits conflicting with some other MotD plugins.
@@ -110,6 +111,9 @@ public Plugin:myinfo =
 // Approximately 5 seconds from MotD display.
 // Time starts from player_activate, a few seconds after Motd is sent, but a few seconds before it actually loads
 #define WAIT_TIME 7
+
+// Some games require a title to explicitly be set (while others don't even show the set title)
+#define MOTD_TITLE "Sponsor Message"
 
 // Game detection
 enum EGame
@@ -244,13 +248,21 @@ public OnClientConnected(client)
 	g_bPlayerActivated[client] = false;
 }
 
-public Action:Event_DoPageHit(Handle:timer, any:user_index)
+public Action:Event_DoPageHit(Handle:timer, any:userid)
 {
 	// This event implies client is in-game while GetClientOfUserId() checks IsClientConnected()
-	new client_index = GetClientOfUserId(user_index);
-	if (client_index && !IsFakeClient(client_index))
+	new client = GetClientOfUserId(userid);
+	if (client && !IsFakeClient(client))
 	{
-		ShowMOTDPanelEx(client_index, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		if (g_Game == kGameCSGO)
+		{
+			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
+			FakeClientCommand(client, "joingame");
+		}
+		else
+		{
+			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		}
 	}
 }
 
@@ -277,7 +289,7 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
 	new client = players[0];
-	if (playersNum > 1 || IsFakeClient(client) || GetState(client) != kAwaitingAd)
+	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client) || GetState(client) != kAwaitingAd)
 	{
 		return Plugin_Continue;
 	}
@@ -316,7 +328,7 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSS, kGameCSGO:
+				case kGameCSS:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS:
 					ClientCommand(client, "changeteam");
@@ -328,7 +340,10 @@ public Action:PageClosed(client, const String:command[], argc)
 }
 
 public Action:LoadPage(Handle:timer, any:client)
-{	
+{
+	if (g_Game == kGameCSGO && GetState(client) == kViewingAd)
+		return Plugin_Handled;
+	
 	new Handle:kv = CreateKeyValues("data");
 
 	if (BGameUsesVGUIEnum())
@@ -351,12 +366,17 @@ public Action:LoadPage(Handle:timer, any:client)
 		KvSetString(kv, "msg",	szURL);
 	}
 	
-	KvSetNum(kv,    "type",    MOTDPANEL_TYPE_URL);
+	if (g_Game == kGameCSGO)
+	{
+		KvSetString(kv, "title", MOTD_TITLE);
+	}
+	
+	KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
 
 	ShowVGUIPanel(client, "info", kv, true);
 	CloseHandle(kv);
 	
-	if (GetState(client) != kViewingAd && GetConVarFloat(g_ConVarCooldown))
+	if (g_Game != kGameCSGO && GetState(client) != kViewingAd && GetConVarFloat(g_ConVarCooldown))
 	{
 		new Handle:data;
 		CreateDataTimer(0.25, Timer_Restrict, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
@@ -364,7 +384,11 @@ public Action:LoadPage(Handle:timer, any:client)
 		WritePackFloat(data, GetGameTime());
 	}
 	
-	ChangeState(client, kViewingAd);
+	if (g_Game == kGameCSGO)
+		ChangeState(client, kAdClosing);
+	else
+		ChangeState(client, kViewingAd);
+	
 	
 	return Plugin_Stop;
 }
