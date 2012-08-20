@@ -29,6 +29,7 @@ Changelog
 	1.8-pre <-> 2012 - Nicholas Hastings
 		Updated game detection.
 		Added support for CS:GO.
+		Added support for "Updater" (https://forums.alliedmods.net/showthread.php?t=169095).
 		Temporarily reverted ForceHTML plugin integration.
 		Fixed team join issues in CS:S and DOD:S.
 		Fixed player hits conflicting with some other MotD plugins.
@@ -81,6 +82,9 @@ Changelog
 #include <sourcemod>
 #include <sdktools>
 
+#undef REQUIRE_PLUGIN
+#tryinclude <updater>
+
 #pragma semicolon 1
 
 #define TEAM_SPEC 1
@@ -98,7 +102,7 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8-pre"
+#define PLUGIN_VERSION "1.8"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -114,6 +118,8 @@ public Plugin:myinfo =
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
+
+#define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts/updatefile.txt"
 
 // Game detection
 enum EGame
@@ -212,7 +218,24 @@ public OnPluginStart()
 		if (IsClientInGame(i))
 			ChangeState(i, kAdDone);
 	}
+	
+#if defined _updater_included
+    if (LibraryExists("updater"))
+    {
+		Updater_AddPlugin(UPDATE_URL);
+	}
+#endif
 }
+
+#if defined _updater_included
+public OnLibraryAdded(const String:name[])
+{
+    if (StrEqual(name, "updater"))
+    {
+        Updater_AddPlugin(UPDATE_URL);
+    }
+}
+#endif
 
 // Occurs after round_start
 public OnConfigsExecuted()
