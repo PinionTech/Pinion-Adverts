@@ -412,6 +412,8 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		return Plugin_Continue;
 	}
 	
+	PrintCenterText(client, "");
+	
 	ChangeState(client, kAdClosing);
 	
 	return Plugin_Stop;
