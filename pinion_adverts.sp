@@ -147,10 +147,10 @@ new String:g_BaseURL[PLATFORM_MAX_PATH];
 
 enum EPlayerState
 {
-	kAwaitingAd,
-	kViewingAd,
-	kAdClosing,
-	kAdDone,
+	kAwaitingAd,  // have not seen ad yet for this map
+	kViewingAd,   // ad has been deplayed
+	kAdClosing,   // ad is allowed to close
+	kAdDone,      // done with ad for this map
 }
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
