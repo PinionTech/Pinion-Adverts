@@ -2,7 +2,7 @@
 Name: Pinion Adverts
 Author: LumiStance / Pinion
 Contributors: Azelphur
-Date: 2012 - 20/02
+Date: 2012 - 22/08
 
 Description:
 	Causes client to access a webpage when player has chosen a team.  Left 4 Dead will use
@@ -26,6 +26,11 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
+	1.5.3 <-> 2012 - 8/22 gH0sTy, MosterKiller
+		Added cvar (sm_java_pagehit) to enable/disable the use of the java method for pagehits
+		Added cvar (sm_write_motdfile) to enable/disable the overwriting of the motdfile
+	1.5.2 <-> 2012 - 6/23 gH0sTy
+		Dosn't replace custom MOTD's
 	1.5.1 <-> 2012 - 5/24 Sam Gentle
 		Made the MOTD hit use a javascript: url
 	1.5 <-> 2012 - 5/24 Mana
@@ -77,19 +82,20 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.5-P"
+#define PLUGIN_VERSION "1.5.3-P"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
 	author = "LumiStance",
 	description = "Replaces MOTD with Pinion adverts",
 	version = PLUGIN_VERSION,
-	url = "http://srcds.lumistance.com/"
+	url = "https://github.com/PinionTech/Pinion-Adverts/"
 };
 
 // MOTD specific
 new UserMsg:vgui;
 new bool:g_FreeNextVGUI;
+new bool:g_bFirstMOTD[MAXPLAYERS+1] = false;
 // Game detection
 new bool:g_L4D = false;
 new bool:g_L4D2 = false; //Detecting both separately
@@ -98,6 +104,8 @@ new Handle:g_Timers[MAXPLAYERS+1];
 // Console Variables
 new Handle:g_ConVar_URL;
 new Handle:g_ConVar_contentURL;
+new Handle:g_ConVar_javaPagehit;
+new Handle:g_ConVar_writeMotdfile;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 new Handle:g_ConVar_motdfile;
@@ -134,7 +142,9 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_motdfile = FindConVar("motdfile");
-	g_ConVar_contentURL = CreateConVar("sm_motdredirect_url", "", "Target URL to write into motdfile", FCVAR_PLUGIN|FCVAR_SPONLY);
+	g_ConVar_contentURL = CreateConVar("sm_motdredirect_url", "", "Target URL to write into motdfile.", FCVAR_PLUGIN|FCVAR_SPONLY);
+	g_ConVar_javaPagehit = CreateConVar("sm_java_pagehit", "1", "If set to 1, use the java method to do the pagehit.", FCVAR_PLUGIN|FCVAR_SPONLY);
+	g_ConVar_writeMotdfile = CreateConVar("sm_write_motdfile", "0", "If set to 1, write sm_motdredirect_url into motdfile.", FCVAR_PLUGIN|FCVAR_SPONLY);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -154,6 +164,14 @@ public OnConfigsExecuted()
 	SetConVarString(g_ConVar_Version, PLUGIN_VERSION);
 }
 
+public OnClientConnected(client)
+{
+	g_bFirstMOTD[client] = true;
+}
+public OnClientDisconnect(client)
+{
+	g_bFirstMOTD[client] = false;
+}
 // Synchronize Cvar Cache when change made
 public Event_CvarChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
@@ -171,21 +189,25 @@ stock RefreshCvarCache()
 	Format(g_BaseURL, sizeof(g_BaseURL), "%s/%i.%i.%i.%i/%i/", g_BaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255, hostport);
 
- 	GetConVarString(g_ConVar_motdfile, g_motdfile, sizeof(g_motdfile));
-	GetConVarString(g_ConVar_contentURL, g_URL, sizeof(g_URL));
-
-	new timestamp = GetFileTime(g_motdfile, FileTime_LastChange);
-	if (g_URL[0] && (g_motdTimeStamp == -1 || g_motdTimeStamp != timestamp))
+	// Check if we're allowed to overwrite the motdfile
+	if (GetConVarBool(g_ConVar_writeMotdfile))
 	{
-		new Handle:fileh = OpenFile(g_motdfile, "w");
-		if (fileh == INVALID_HANDLE)
-			SetFailState("[lm]Could not open \"%s\"", g_motdfile);
-		else
-		{
-			WriteFileLine(fileh, g_URL);
-			CloseHandle(fileh);
+		GetConVarString(g_ConVar_motdfile, g_motdfile, sizeof(g_motdfile));
+		GetConVarString(g_ConVar_contentURL, g_URL, sizeof(g_URL));
 
-			g_motdTimeStamp = GetFileTime(g_motdfile, FileTime_LastChange);
+		new timestamp = GetFileTime(g_motdfile, FileTime_LastChange);
+		if (g_URL[0] && (g_motdTimeStamp == -1 || g_motdTimeStamp != timestamp))
+		{
+			new Handle:fileh = OpenFile(g_motdfile, "w");
+			if (fileh == INVALID_HANDLE)
+				SetFailState("[lm]Could not open \"%s\"", g_motdfile);
+			else
+			{
+				WriteFileLine(fileh, g_URL);
+				CloseHandle(fileh);
+
+				g_motdTimeStamp = GetFileTime(g_motdfile, FileTime_LastChange);
+			}
 		}
 	}
 }
@@ -203,12 +225,17 @@ public Action:Event_DoPageHit(Handle:timer, any:user_index)
 	new client_index = GetClientOfUserId(user_index);
 	if (client_index && !IsFakeClient(client_index))
 	{
+		//PrintToServer("Page Hit for %d", client_index);
 		decl String:auth[PLATFORM_MAX_PATH];
 		decl String:url[PLATFORM_MAX_PATH];
 		
 		GetClientAuthString(client_index, auth, sizeof(auth));
 		
-		Format(url, sizeof(url), "javascript:pingTracker('%s%s')", g_BaseURL, auth);
+		// Check if we use the java method or not
+		if (GetConVarBool(g_ConVar_javaPagehit))
+			Format(url, sizeof(url), "javascript:pingTracker('%s%s')", g_BaseURL, auth);
+		else
+			Format(url, sizeof(url), "%s%s", g_BaseURL, auth);
 
 		ShowMOTDPanelEx(client_index, "", url, MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	}
@@ -239,19 +266,39 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	}
 
 	decl String:buffer[64];
+	decl String:buffer2[256];
+	
 	BfReadString(bf, buffer, sizeof(buffer));
 	if (strcmp(buffer, "info") != 0)
 		return Plugin_Continue;
 	
+	new count = BfReadByte(bf);
+	if (count == 0 || !g_bFirstMOTD[players[0]])
+		return Plugin_Continue;
 	//Psychonic's plugin was very helpful in learning how to block the right VGUI menu	
 	//https://forums.alliedmods.net/showthread.php?t=147193	
 	
-	else
+	new Handle:kv = CreateKeyValues("data");
+	for (new i = 0; i < count; i++)
 	{
-		PrintToServer("Calling it for %d", players[0]);
-		g_Timers[players[0]] = CreateTimer(0.1, LoadPage, players[0]);
+		BfReadString(bf, buffer, sizeof(buffer));
+		BfReadString(bf, buffer2, sizeof(buffer2));
+		
+		// Don't replace other pages as it would render plugins like webshortcuts or Radio useless
+		if (strcmp(buffer, "customsvr") == 0 || (strcmp(buffer, "msg") == 0 && strcmp(buffer2, "motd") != 0))
+		{
+			CloseHandle(kv);
+			return Plugin_Continue;
+		}
+		
+		KvSetString(kv, buffer, buffer2);
 	}
-
+	
+	new Handle:pack;
+	g_Timers[players[0]] = CreateDataTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	WritePackCell(pack, GetClientUserId(players[0]));
+	WritePackCell(pack, _:kv);
+	
 	return Plugin_Handled;
 }
 
@@ -265,15 +312,17 @@ public Action:PageClosed(client, const String:command[], argc)
 
 }
 
-public Action:LoadPage(Handle:timer, any:client)
-//public Action:LoadPage(client)
+public Action:LoadPage(Handle:hTimer, Handle:pack)
 {
+	ResetPack(pack);
+	new client = GetClientOfUserId(ReadPackCell(pack));
+	new Handle:kv = Handle:ReadPackCell(pack);
+	
+	g_bFirstMOTD[client] = false;
 	g_Timers[client] = INVALID_HANDLE;
 
 	decl String:URL[128];
 	GetConVarString(g_ConVar_contentURL, URL, sizeof(URL));
-
-	new Handle:kv = CreateKeyValues("data");
 
 	if ((g_L4D2) || (g_L4D))
 	{
@@ -287,7 +336,9 @@ public Action:LoadPage(Handle:timer, any:client)
 
 	g_FreeNextVGUI = true;
 
-        ShowVGUIPanel(client, "info", kv, true);
+	if (client != 0)
+		ShowVGUIPanel(client, "info", kv, true);
+		
 	CloseHandle(kv);
 
 	return Plugin_Stop;
