@@ -26,7 +26,9 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
-	1.8-pre <-> 2012 - Nicholas Hastings
+	1.8.1 <-> 2012 - Nicholas Hastings
+		Fixed MOTD panel being unclosable on most games if sm_motdredirect_force_min_duration set to 0.
+	1.8 <-> 2012 - Nicholas Hastings
 		Updated game detection.
 		Added support for CS:GO.
 		Added support for "Updater" (https://forums.alliedmods.net/showthread.php?t=169095).
@@ -102,7 +104,7 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8"
+#define PLUGIN_VERSION "1.8.1"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -400,7 +402,8 @@ public Action:LoadPage(Handle:timer, any:client)
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
-	if (g_Game != kGameCSGO && GetState(client) != kViewingAd && GetConVarFloat(g_ConVarCooldown))
+	new bool:bUseCooldown = (g_Game != kGameCSGO && GetConVarBool(g_ConVarCooldown));
+	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
 		CreateDataTimer(0.25, Timer_Restrict, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
@@ -408,7 +411,7 @@ public Action:LoadPage(Handle:timer, any:client)
 		WritePackFloat(data, GetGameTime());
 	}
 	
-	if (g_Game == kGameCSGO)
+	if (!bUseCooldown)
 		ChangeState(client, kAdClosing);
 	else
 		ChangeState(client, kViewingAd);
