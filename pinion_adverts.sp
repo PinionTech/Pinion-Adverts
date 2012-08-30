@@ -116,7 +116,7 @@ public Plugin:myinfo =
 
 // Approximately 5 seconds from MotD display.
 // Time starts from player_activate, a few seconds after Motd is sent, but a few seconds before it actually loads
-#define WAIT_TIME 7
+#define WAIT_TIME 8
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
