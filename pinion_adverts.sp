@@ -273,10 +273,10 @@ public OnClientConnected(client)
 	g_bPlayerActivated[client] = false;
 }
 
-public Action:Event_DoPageHit(Handle:timer, any:userid)
+public Action:Event_DoPageHit(Handle:timer, any:serial)
 {
 	// This event implies client is in-game while GetClientOfUserId() checks IsClientConnected()
-	new client = GetClientOfUserId(userid);
+	new client = GetClientFromSerial(serial);
 	if (client && !IsFakeClient(client))
 	{
 		if (g_Game == kGameCSGO)
@@ -349,10 +349,8 @@ public Action:PageClosed(client, const String:command[], argc)
 		}
 		case kAdClosing:
 		{
-			//keeping this in userid form incase we still need to hook events in the future for some games
 			ChangeState(client, kAdDone);
-			new userid = GetClientUserId(client); 
-			CreateTimer(0.1, Event_DoPageHit, userid);
+			CreateTimer(0.1, Event_DoPageHit, GetClientSerial(client));
 			
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
