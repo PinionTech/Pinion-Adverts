@@ -327,22 +327,25 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 		return Plugin_Continue;
 	}
 	
-	CreateTimer(0.1, LoadPage, players[0]);
+	CreateTimer(0.1, LoadPage, GetClientSerial(players[0]));
 
 	return Plugin_Handled;
 }
 
 public Action:PageClosed(client, const String:command[], argc)
 {
+	if (client == 0 || !IsClientInGame(client))
+		return Plugin_Continue;
+	
 	switch (GetState(client))
 	{
 		case kAdDone:
 		{
-			return Plugin_Handled;
+			return Plugin_Continue;
 		}
 		case kViewingAd:
 		{
-			LoadPage(INVALID_HANDLE, client);
+			LoadPage(INVALID_HANDLE, GetClientSerial(client));
 		}
 		case kAdClosing:
 		{
@@ -362,12 +365,14 @@ public Action:PageClosed(client, const String:command[], argc)
 		}
 	}
 	
-	return Plugin_Handled;
+	return Plugin_Continue;
 }
 
-public Action:LoadPage(Handle:timer, any:client)
+public Action:LoadPage(Handle:timer, any:serial)
 {
-	if (g_Game == kGameCSGO && GetState(client) == kViewingAd)
+	new client = GetClientFromSerial(serial);
+	
+	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Handled;
 	
 	new Handle:kv = CreateKeyValues("data");
