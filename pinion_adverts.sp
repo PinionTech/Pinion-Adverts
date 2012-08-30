@@ -484,7 +484,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new timeleft = WAIT_TIME - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
-		PrintCenterText(client, "You may close the MOTD in %d seconds.", timeleft);
+		PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
 		return Plugin_Continue;
 	}
 	
