@@ -156,12 +156,21 @@ new String:g_BaseURL[PLATFORM_MAX_PATH];
 enum EPlayerState
 {
 	kAwaitingAd,  // have not seen ad yet for this map
+	kAwaitingHTMLCheck,
 	kViewingAd,   // ad has been deplayed
 	kAdClosing,   // ad is allowed to close
 	kAdDone,      // done with ad for this map
 }
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
+
+enum EPlayerHTMLSupport
+{
+	kHTMLUnknown,
+	kHTMLYes,
+	kHTMLNo,
+}
+new EPlayerHTMLSupport:g_PlayerHTMLSupport[MAXPLAYERS+1] = {kHTMLYes, ...};
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
@@ -217,8 +226,10 @@ public OnPluginStart()
 	
 	for (new i = 1; i <= MaxClients; ++i)
 	{
-		if (IsClientInGame(i))
-			ChangeState(i, kAdDone);
+		if (!IsClientInGame(i))
+			continue;
+
+		ChangeState(i, kAdDone);
 	}
 	
 #if defined _updater_included
@@ -271,6 +282,24 @@ public OnClientConnected(client)
 {
 	ChangeState(client,  kAwaitingAd);
 	g_bPlayerActivated[client] = false;
+	
+	if (!IsFakeClient(client) && BGameNeedsHTMLDisabledCheck())
+	{
+		g_PlayerHTMLSupport[client] = kHTMLUnknown;
+		QueryClientConVar(client, "cl_disablehtmlmotd", OnDisableHTMLCheckFinished);
+	}
+}
+
+public OnDisableHTMLCheckFinished(QueryCookie:cookie, client, ConVarQueryResult:result, const String:cvarName[], const String:cvarValue[])
+{
+	if (!IsClientConnected(client))
+		return;
+	
+	g_PlayerHTMLSupport[client] = StringToInt(cvarValue) == 0 ? kHTMLNo : kHTMLYes;
+	if (GetState(client) == kAwaitingHTMLCheck)
+	{
+		LoadPage(INVALID_HANDLE, GetClientSerial(client));
+	}
 }
 
 public Action:Event_DoPageHit(Handle:timer, any:serial)
@@ -315,7 +344,9 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 {
 	new client = players[0];
 	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client)
-		|| (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
+		|| (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd)
+		|| (BGameNeedsHTMLDisabledCheck() && g_PlayerHTMLSupport[client] == kHTMLNo)
+		)
 	{
 		return Plugin_Continue;
 	}
@@ -343,7 +374,7 @@ public Action:PageClosed(client, const String:command[], argc)
 		{
 			return Plugin_Continue;
 		}
-		case kViewingAd:
+		case kAwaitingHTMLCheck, kViewingAd:
 		{
 			LoadPage(INVALID_HANDLE, GetClientSerial(client));
 		}
@@ -371,7 +402,39 @@ public Action:LoadPage(Handle:timer, any:serial)
 	new client = GetClientFromSerial(serial);
 	
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
-		return Plugin_Handled;
+		return Plugin_Stop;
+	
+	if (BGameNeedsHTMLDisabledCheck())
+	{
+		if (g_PlayerHTMLSupport[client] == kHTMLNo)
+		{
+			new Handle:kv = CreateKeyValues("data");
+			KvSetString(kv, "title", "#TF_Welcome");
+			KvSetNum(kv, "type", MOTDPANEL_TYPE_INDEX);
+			KvSetString(kv, "msg", "motd");
+			KvSetString(kv, "msg_fallback", "motd_text");
+			ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
+			CloseHandle(kv);
+			
+			ChangeState(client, kAdDone);
+			
+			return Plugin_Stop;
+		}
+		else if (g_PlayerHTMLSupport[client] == kHTMLUnknown || GetState(client) == kAwaitingHTMLCheck)
+		{
+			new Handle:kv = CreateKeyValues("data");
+			KvSetString(kv, "title", MOTD_TITLE);
+			KvSetNum(kv, "type", MOTDPANEL_TYPE_TEXT);
+			KvSetString(kv, "msg", "Please wait...");
+			KvSetString(kv, "cmd", "closed_htmlpage");
+			ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
+			CloseHandle(kv);
+			
+			ChangeState(client, kAwaitingHTMLCheck);
+			
+			return Plugin_Stop;
+		}
+	}
 	
 	new Handle:kv = CreateKeyValues("data");
 
@@ -393,6 +456,11 @@ public Action:LoadPage(Handle:timer, any:serial)
 		Format(szURL, sizeof(szURL), "%s&steamid=%s", g_BaseURL, szAuth);
 		
 		KvSetString(kv, "msg",	szURL);
+	}
+	
+	if (BGameNeedsHTMLDisabledCheck())
+	{
+		KvSetBool(kv, "customsvr", true);
 	}
 	
 	if (g_Game == kGameCSGO)
@@ -525,4 +593,14 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
 		;
+}
+
+stock bool:BGameNeedsHTMLDisabledCheck()
+{
+	return g_Game == kGameTF2;
+}
+
+stock KvSetBool(Handle:kv, const String:keyName[], bool:value)
+{
+	KvSetNum(kv, keyName, value);
 }
