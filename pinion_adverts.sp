@@ -163,10 +163,10 @@ enum EPlayerState
 }
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
+new bool:g_bMOTDTriggered[MAXPLAYERS+1] = {false, ...};
 
 enum EPlayerHTMLSupport
 {
-	kHTMLUnknown,
 	kHTMLYes,
 	kHTMLNo,
 }
@@ -280,14 +280,13 @@ RefreshCvarCache()
 
 public OnClientConnected(client)
 {
-	ChangeState(client,  kAwaitingAd);
-	g_bPlayerActivated[client] = false;
+	if (!IsFakeClient(client) && g_Game == kGameTF2)
+		ChangeState(client, kAwaitingHTMLCheck);
+	else
+		ChangeState(client, kAwaitingAd);
 	
-	if (!IsFakeClient(client) && BGameNeedsHTMLDisabledCheck())
-	{
-		g_PlayerHTMLSupport[client] = kHTMLUnknown;
-		QueryClientConVar(client, "cl_disablehtmlmotd", OnDisableHTMLCheckFinished);
-	}
+	g_bPlayerActivated[client] = false;
+	g_bMOTDTriggered[client] = false;
 }
 
 public OnDisableHTMLCheckFinished(QueryCookie:cookie, client, ConVarQueryResult:result, const String:cvarName[], const String:cvarValue[])
@@ -295,8 +294,15 @@ public OnDisableHTMLCheckFinished(QueryCookie:cookie, client, ConVarQueryResult:
 	if (!IsClientConnected(client))
 		return;
 	
-	g_PlayerHTMLSupport[client] = StringToInt(cvarValue) == 0 ? kHTMLNo : kHTMLYes;
-	if (GetState(client) == kAwaitingHTMLCheck)
+	g_PlayerHTMLSupport[client] = StringToInt(cvarValue) == 0 ? kHTMLYes : kHTMLNo;
+	
+	if (g_PlayerHTMLSupport[client] == kHTMLYes)
+	{
+		ChangeState(client, kAwaitingAd);
+	}
+	
+	// is MOTD waiting on us already?
+	if (g_bMOTDTriggered[client])
 	{
 		LoadPage(INVALID_HANDLE, GetClientSerial(client));
 	}
@@ -333,6 +339,14 @@ stock ShowMOTDPanelEx(client, const String:title[], const String:msg[], type=MOT
 	CloseHandle(Kv);
 }
 
+public OnClientPutInServer(client)
+{
+	if (GetState(client) == kAwaitingHTMLCheck)
+	{
+		QueryClientConVar(client, "cl_disablehtmlmotd", OnDisableHTMLCheckFinished);
+	}
+}
+
 public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
@@ -343,20 +357,17 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
 	new client = players[0];
-	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client)
-		|| (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd)
-		|| (BGameNeedsHTMLDisabledCheck() && g_PlayerHTMLSupport[client] == kHTMLNo)
-		)
-	{
+	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client))
 		return Plugin_Continue;
-	}
+	
+	new EPlayerState:playerState = GetState(client);
+	if (playerState != kAwaitingHTMLCheck && playerState != kAwaitingAd && playerState != kViewingAd)
+		return Plugin_Continue;
 
 	decl String:buffer[64];
 	BfReadString(bf, buffer, sizeof(buffer));
 	if (strcmp(buffer, "info") != 0)
-	{
 		return Plugin_Continue;
-	}
 	
 	CreateTimer(0.1, LoadPage, GetClientSerial(players[0]));
 
@@ -390,6 +401,8 @@ public Action:PageClosed(client, const String:command[], argc)
 					FakeClientCommand(client, "joingame");
 				case kGameDODS:
 					ClientCommand(client, "changeteam");
+				case kGameTF2:
+					ShowVGUIPanel(client, "team");
 			}
 		}
 	}
@@ -404,7 +417,9 @@ public Action:LoadPage(Handle:timer, any:serial)
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	if (BGameNeedsHTMLDisabledCheck())
+	g_bMOTDTriggered[client] = true;
+	
+	if (g_Game == kGameTF2)
 	{
 		if (g_PlayerHTMLSupport[client] == kHTMLNo)
 		{
@@ -420,17 +435,15 @@ public Action:LoadPage(Handle:timer, any:serial)
 			
 			return Plugin_Stop;
 		}
-		else if (g_PlayerHTMLSupport[client] == kHTMLUnknown || GetState(client) == kAwaitingHTMLCheck)
+		else if (GetState(client) == kAwaitingHTMLCheck)
 		{
 			new Handle:kv = CreateKeyValues("data");
 			KvSetString(kv, "title", MOTD_TITLE);
 			KvSetNum(kv, "type", MOTDPANEL_TYPE_TEXT);
 			KvSetString(kv, "msg", "Please wait...");
-			KvSetString(kv, "cmd", "closed_htmlpage");
+			KvSetNum(kv, "cmd", MOTDPANEL_CMD_CLOSED_HTMLPAGE);
 			ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 			CloseHandle(kv);
-			
-			ChangeState(client, kAwaitingHTMLCheck);
 			
 			return Plugin_Stop;
 		}
@@ -458,7 +471,7 @@ public Action:LoadPage(Handle:timer, any:serial)
 		KvSetString(kv, "msg",	szURL);
 	}
 	
-	if (BGameNeedsHTMLDisabledCheck())
+	if (g_Game == kGameTF2)
 	{
 		KvSetBool(kv, "customsvr", true);
 	}
@@ -593,11 +606,6 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
 		;
-}
-
-stock bool:BGameNeedsHTMLDisabledCheck()
-{
-	return g_Game == kGameTF2;
 }
 
 stock KvSetBool(Handle:kv, const String:keyName[], bool:value)
