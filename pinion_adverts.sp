@@ -288,7 +288,24 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 		{
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		}
+		
+		CreateTimer(1.0, ClearMOTD, serial);
 	}
+}
+
+public Action:ClearMOTD(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	if (!client)
+		return Plugin_Stop;
+	
+	new Handle:kv = CreateKeyValues("data");
+	KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
+	KvSetString(kv, "msg", "about:blank");
+	ShowVGUIPanel(client, "info", kv, false);
+	CloseHandle(kv);
+	
+	return Plugin_Stop;
 }
 
 // Extended ShowMOTDPanel with options for Command and Show
