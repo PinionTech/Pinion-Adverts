@@ -128,6 +128,8 @@ public Plugin:myinfo =
 
 #define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts/updatefile.txt"
 
+#define IsReViewEnabled() GetConVarBool(g_ConVarReView)
+
 // Game detection
 enum EGame
 {
@@ -155,6 +157,7 @@ new EGame:g_Game = kGameUnsupported;
 // Console Variables
 new Handle:g_ConVar_URL;
 new Handle:g_ConVarCooldown;
+new Handle:g_ConVarReView;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 
@@ -169,6 +172,12 @@ enum EPlayerState
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
 new bool:g_bMOTDTriggered[MAXPLAYERS+1] = {false, ...};
+
+new g_iPlayerLastViewedAd[MAXPLAYERS+1] = {0, ...};
+
+#define SECONDS_IN_MINUTE 60
+// 40 minutes
+new const g_iReViewTime = 2 * SECONDS_IN_MINUTE;
 
 enum EPlayerHTMLSupport
 {
@@ -218,6 +227,7 @@ public OnPluginStart()
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
+	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad at next round end if they have not seen it recently");
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -236,6 +246,8 @@ public OnPluginStart()
 
 		ChangeState(i, kAdDone);
 	}
+	
+	SetupReView();
 	
 #if defined _updater_included
     if (LibraryExists("updater"))
@@ -281,6 +293,15 @@ RefreshCvarCache()
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 		hostport);
+}
+
+SetupReView()
+{
+	// only support on TF2 while testing
+	if (g_Game == kGameTF2)
+	{
+		HookEvent("teamplay_win_panel", Event_RoundEnd, EventHookMode_PostNoCopy);
+	}
 }
 
 public OnClientConnected(client)
@@ -358,6 +379,25 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 	g_bPlayerActivated[client] = true;
 }
 
+public Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if (!IsReViewEnabled())
+		return;
+	
+	new now = GetTime();
+	for (new i = 1; i <= MaxClients; ++i)
+	{
+		if (!IsClientInGame(i) || IsFakeClient(i))
+			continue;
+		
+		new lastviewed = g_iPlayerLastViewedAd[i];
+		if (lastviewed == 0 || (now - lastviewed) < g_iReViewTime)
+			continue;
+		
+		ChangeState(i, kAwaitingAd);
+		CreateTimer(2.0, LoadPage, GetClientSerial(i), TIMER_FLAG_NO_MAPCHANGE);
+	}
+}
 
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
@@ -423,6 +463,7 @@ public Action:LoadPage(Handle:timer, any:serial)
 		return Plugin_Stop;
 	
 	g_bMOTDTriggered[client] = true;
+	g_iPlayerLastViewedAd[client] = GetTime();
 	
 	if (g_Game == kGameTF2)
 	{
