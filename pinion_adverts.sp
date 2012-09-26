@@ -26,6 +26,11 @@ Configuration Variables (Change in motdpagehit.cfg):
 	sm_motdpagehit_url - The URL accessed on player event
 
 Changelog
+	1.8.2 <-> 2012 - Nicholas Hastings
+		Fixed harmless invalid client error that would occasionally be logged.
+		Updated wait-to-close mention to mention Pinion Pot of Gold.
+		Now using large MOTD window on TF2.
+		Fixed regression in 1.8.0 causing ND to not open team menu after MOTD close.
 	1.8.1 <-> 2012 - Nicholas Hastings
 		Fixed MOTD panel being unclosable on most games if sm_motdredirect_force_min_duration set to 0.
 	1.8 <-> 2012 - Nicholas Hastings
@@ -104,7 +109,7 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8.1"
+#define PLUGIN_VERSION "1.8.2"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
