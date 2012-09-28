@@ -158,6 +158,7 @@ new EGame:g_Game = kGameUnsupported;
 new Handle:g_ConVar_URL;
 new Handle:g_ConVarCooldown;
 new Handle:g_ConVarReView;
+new Handle:g_ConVarReViewTime;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 
@@ -177,7 +178,7 @@ new g_iPlayerLastViewedAd[MAXPLAYERS+1] = {0, ...};
 
 #define SECONDS_IN_MINUTE 60
 // 40 minutes
-new const g_iReViewTime = 2 * SECONDS_IN_MINUTE;
+#define GetReViewTime() (GetConVarInt(g_ConVarReViewTime) * SECONDS_IN_MINUTE)
 
 enum EPlayerHTMLSupport
 {
@@ -228,6 +229,7 @@ public OnPluginStart()
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad at next round end if they have not seen it recently");
+	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "40", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 30.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -385,13 +387,15 @@ public Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 		return;
 	
 	new now = GetTime();
+	new iReViewTime = GetReViewTime();
+	
 	for (new i = 1; i <= MaxClients; ++i)
 	{
 		if (!IsClientInGame(i) || IsFakeClient(i))
 			continue;
 		
 		new lastviewed = g_iPlayerLastViewedAd[i];
-		if (lastviewed == 0 || (now - lastviewed) < g_iReViewTime)
+		if (lastviewed == 0 || (now - lastviewed) < iReViewTime)
 			continue;
 		
 		ChangeState(i, kAwaitingAd);
