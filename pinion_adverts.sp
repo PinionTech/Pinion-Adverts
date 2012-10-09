@@ -29,7 +29,6 @@ Changelog
 	1.8.2 <-> 2012 - Nicholas Hastings
 		Fixed harmless invalid client error that would occasionally be logged.
 		Updated wait-to-close mention to mention Pinion Pot of Gold.
-		Now using large MOTD window on TF2.
 		Fixed regression in 1.8.0 causing ND to not open team menu after MOTD close.
 	1.8.1 <-> 2012 - Nicholas Hastings
 		Fixed MOTD panel being unclosable on most games if sm_motdredirect_force_min_duration set to 0.
@@ -165,27 +164,18 @@ new String:g_BaseURL[PLATFORM_MAX_PATH];
 enum EPlayerState
 {
 	kAwaitingAd,  // have not seen ad yet for this map
-	kAwaitingHTMLCheck,
 	kViewingAd,   // ad has been deplayed
 	kAdClosing,   // ad is allowed to close
 	kAdDone,      // done with ad for this map
 }
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
-new bool:g_bMOTDTriggered[MAXPLAYERS+1] = {false, ...};
 
 new g_iPlayerLastViewedAd[MAXPLAYERS+1] = {0, ...};
 
 #define SECONDS_IN_MINUTE 60
 // 40 minutes
 #define GetReViewTime() (GetConVarInt(g_ConVarReViewTime) * SECONDS_IN_MINUTE)
-
-enum EPlayerHTMLSupport
-{
-	kHTMLYes,
-	kHTMLNo,
-}
-new EPlayerHTMLSupport:g_PlayerHTMLSupport[MAXPLAYERS+1] = {kHTMLYes, ...};
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
@@ -308,32 +298,9 @@ SetupReView()
 
 public OnClientConnected(client)
 {
-	if (!IsFakeClient(client) && g_Game == kGameTF2)
-		ChangeState(client, kAwaitingHTMLCheck);
-	else
-		ChangeState(client, kAwaitingAd);
+	ChangeState(client, kAwaitingAd);
 	
 	g_bPlayerActivated[client] = false;
-	g_bMOTDTriggered[client] = false;
-}
-
-public OnDisableHTMLCheckFinished(QueryCookie:cookie, client, ConVarQueryResult:result, const String:cvarName[], const String:cvarValue[])
-{
-	if (!IsClientConnected(client))
-		return;
-	
-	g_PlayerHTMLSupport[client] = StringToInt(cvarValue) == 0 ? kHTMLYes : kHTMLNo;
-	
-	if (g_PlayerHTMLSupport[client] == kHTMLYes)
-	{
-		ChangeState(client, kAwaitingAd);
-	}
-	
-	// is MOTD waiting on us already?
-	if (g_bMOTDTriggered[client])
-	{
-		LoadPage(INVALID_HANDLE, GetClientSerial(client));
-	}
 }
 
 public Action:Event_DoPageHit(Handle:timer, any:serial)
@@ -367,14 +334,6 @@ stock ShowMOTDPanelEx(client, const String:title[], const String:msg[], type=MOT
 	CloseHandle(Kv);
 }
 
-public OnClientPutInServer(client)
-{
-	if (GetState(client) == kAwaitingHTMLCheck)
-	{
-		QueryClientConVar(client, "cl_disablehtmlmotd", OnDisableHTMLCheckFinished);
-	}
-}
-
 public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
@@ -406,11 +365,8 @@ public Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
 	new client = players[0];
-	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client))
-		return Plugin_Continue;
-	
-	new EPlayerState:playerState = GetState(client);
-	if (playerState != kAwaitingHTMLCheck && playerState != kAwaitingAd && playerState != kViewingAd)
+	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client)
+		|| (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
 		return Plugin_Continue;
 
 	decl String:buffer[64];
@@ -434,7 +390,7 @@ public Action:PageClosed(client, const String:command[], argc)
 		{
 			return Plugin_Continue;
 		}
-		case kAwaitingHTMLCheck, kViewingAd:
+		case kViewingAd:
 		{
 			LoadPage(INVALID_HANDLE, GetClientSerial(client));
 		}
@@ -450,8 +406,6 @@ public Action:PageClosed(client, const String:command[], argc)
 					FakeClientCommand(client, "joingame");
 				case kGameDODS:
 					ClientCommand(client, "changeteam");
-				case kGameTF2:
-					ShowVGUIPanel(client, "team");
 			}
 		}
 	}
@@ -465,39 +419,6 @@ public Action:LoadPage(Handle:timer, any:serial)
 	
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
-	
-	g_bMOTDTriggered[client] = true;
-	g_iPlayerLastViewedAd[client] = GetTime();
-	
-	if (g_Game == kGameTF2)
-	{
-		if (g_PlayerHTMLSupport[client] == kHTMLNo)
-		{
-			new Handle:kv = CreateKeyValues("data");
-			KvSetString(kv, "title", "#TF_Welcome");
-			KvSetNum(kv, "type", MOTDPANEL_TYPE_INDEX);
-			KvSetString(kv, "msg", "motd");
-			KvSetString(kv, "msg_fallback", "motd_text");
-			ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
-			CloseHandle(kv);
-			
-			ChangeState(client, kAdDone);
-			
-			return Plugin_Stop;
-		}
-		else if (GetState(client) == kAwaitingHTMLCheck)
-		{
-			new Handle:kv = CreateKeyValues("data");
-			KvSetString(kv, "title", MOTD_TITLE);
-			KvSetNum(kv, "type", MOTDPANEL_TYPE_TEXT);
-			KvSetString(kv, "msg", "Please wait...");
-			KvSetNum(kv, "cmd", MOTDPANEL_CMD_CLOSED_HTMLPAGE);
-			ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
-			CloseHandle(kv);
-			
-			return Plugin_Stop;
-		}
-	}
 	
 	new Handle:kv = CreateKeyValues("data");
 
@@ -520,12 +441,7 @@ public Action:LoadPage(Handle:timer, any:serial)
 		
 		KvSetString(kv, "msg",	szURL);
 	}
-	
-	if (g_Game == kGameTF2)
-	{
-		KvSetBool(kv, "customsvr", true);
-	}
-	
+
 	if (g_Game == kGameCSGO)
 	{
 		KvSetString(kv, "title", MOTD_TITLE);
@@ -656,9 +572,4 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
 		;
-}
-
-stock KvSetBool(Handle:kv, const String:keyName[], bool:value)
-{
-	KvSetNum(kv, keyName, value);
 }
