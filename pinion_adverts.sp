@@ -1,8 +1,6 @@
 /* pinion_adverts.sp
 Name: Pinion Adverts
-Author: LumiStance / Pinion
-Contributors: Azelphur
-Date: 2012 - 20/02
+See changelog for complete list of authors and contributors
 
 Description:
 	Causes client to access a webpage when player has chosen a team.  Left 4 Dead will use
@@ -12,20 +10,21 @@ Description:
 Installation:
 	Place compiled plugin (pinion_adverts.smx) into your plugins folder.
 	The configuration file (pinion_adverts.cfg) is generated automatically.
-	Changes to motdpagehit.cfg are read at map/plugin load time.
 	Changes to cvars made in console take effect immediately.
-
-Upgrade Notes:
-	Renamed sm_motdpagehit_spawnurl to sm_motdpagehit_url as of v1.3; modify pinion_adverts.cfg appropriately.
 
 Files:
 	cstrike/addons/sourcemod/plugins/pinion_adverts.smx
 	cstrike/cfg/sourcemod/pinion_adverts.cfg
 
-Configuration Variables (Change in motdpagehit.cfg):
-	sm_motdpagehit_url - The URL accessed on player event
+Configuration Variables: See pinion_adverts.cfg.
+
+------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.9.0 <-> 2012 10/31 - Caelan Borowiec
+		Added an error message to alert users if sm_motdredirect_url has not been assigned a value.
+		Added functionality to check for incompatible plugins and display a notice via the MOTD
+		Updated plugin comments.
 	1.8.2 <-> 2012 - Nicholas Hastings
 		Fixed harmless invalid client error that would occasionally be logged.
 		Updated wait-to-close mention to mention Pinion Pot of Gold.
@@ -108,7 +107,7 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8.3-pre"
+#define PLUGIN_VERSION "1.9.0-pre"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -153,11 +152,13 @@ new const String:g_SupportedGames[EGame][] = {
 	"csgo"
 };
 new EGame:g_Game = kGameUnsupported;
+
 // Console Variables
 new Handle:g_ConVar_URL;
 new Handle:g_ConVarCooldown;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
+
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 
@@ -266,6 +267,55 @@ public OnConfigsExecuted()
 	RefreshCvarCache();
 }
 
+// Called after all plugins are loaded
+public OnAllPluginsLoaded()
+{
+	//See what other plugins are loaded
+	new Handle:hIterator = GetPluginIterator();
+	new Handle:hPlugin = INVALID_HANDLE;
+	new String:sData[128];
+	
+	new bool:FoundPlugin = false;
+	
+	while (MorePlugins(hIterator))
+	{
+		hPlugin = ReadPlugin(hIterator);
+		
+		if (GetPluginInfo(hPlugin, PlInfo_Name, sData, sizeof(sData)))
+		{
+			if (StrEqual(sData, "Open URL MOTD", false))
+			{
+				FoundPlugin = true;
+				break;
+			}
+			if (StrEqual(sData, "Auto DeSpectate", false))
+			{
+				FoundPlugin = true;
+				break;
+			}
+		}
+	}
+	CloseHandle(hPlugin);
+	CloseHandle(hIterator);
+	
+	if (FoundPlugin == true)
+	{
+		if (FileExists("motd.txt"))
+			RenameFile("motd.txt", "motd_backup.txt");
+		
+		new Handle:hMOTD = OpenFile("motd.txt", "w");
+		if (hMOTD != INVALID_HANDLE)
+		{
+			ReplaceString(sData, sizeof(sData), " ", "+");
+			WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sData);
+		}
+		CloseHandle(hMOTD);
+		
+		SetFailState("This plugin cannot run while %s is loaded.  Please remove %s to use this plugin.", sData, sData);
+	}
+}
+
+
 // Synchronize Cvar Cache when change made
 public Event_CvarChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
@@ -277,6 +327,9 @@ RefreshCvarCache()
 	// Build and cache url/ip/port string
 	decl String:szInitialBaseURL[128];
 	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
+	
+	if (StrEqual(szInitialBaseURL, ""))
+		LogError("CVar sm_motdredirect_url has not been set:  Please check your pinion_adverts config file.");
 	
 	new hostip = GetConVarInt(FindConVar("hostip"));
 	new hostport = GetConVarInt(FindConVar("hostport"));
