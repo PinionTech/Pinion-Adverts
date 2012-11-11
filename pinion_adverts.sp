@@ -21,6 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.11.1 <-> 2012 11/11 - Caelan Borowiec
+		Corrected version numbering in the #define
+		Added plugin version number to the query string
+		Changed TF2 end-round advertisement handling:  Now all players will see an ad during the same round-end period after a global timer elapses.
 	1.10.1 <-> 2012 11/10 - Caelan Borowiec
 		Fixed incompatible plugin message displaying with url-encoded text
 		Added support for displaying advertisements after Left 4 Dead 1/Left 4 Dead 2 map stage transitions
@@ -110,8 +114,17 @@ enum
 	MOTDPANEL_CMD_CHOOSE_TEAM,
 };
 
+// TODO: Ad trigger detection
+enum loadTigger
+{
+	AD_TRIGGER_UNDEFINED,
+	AD_TRIGGER_CONNECT,
+	AD_TRIGGER_PLAYER_TRANSITION,
+	AD_TRIGGER_GLOBAL_TIMER,
+};
+
 // Plugin definitions
-#define PLUGIN_VERSION "1.10.0-pre"
+#define PLUGIN_VERSION "1.11.1-pre"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -177,7 +190,8 @@ enum EPlayerState
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
 
-new g_iPlayerLastViewedAd[MAXPLAYERS+1] = {0, ...};
+//new g_iPlayerLastViewedAd[MAXPLAYERS+1] = {0, ...};
+new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player leaves the server.
 
 #define SECONDS_IN_MINUTE 60
 // 40 minutes
@@ -342,10 +356,12 @@ RefreshCvarCache()
 	new hostip = GetConVarInt(FindConVar("hostip"));
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	
-	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&port=%d", 
+	// TODO: Add gamedir url var?
+	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&port=%d&plug_ver=%s", 
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
-		hostport);
+		hostport,
+		PLUGIN_VERSION);
 }
 
 SetupReView()
@@ -410,20 +426,28 @@ public Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 	if (!IsReViewEnabled())
 		return;
 	
-	new now = GetTime();
-	new iReViewTime = GetReViewTime();
-	
-	for (new i = 1; i <= MaxClients; ++i)
+	if (g_iLastAdWave == -1) // Time counter has been reset or has not started.  Start it now.
 	{
-		if (!IsClientInGame(i) || IsFakeClient(i))
-			continue;
-		
-		new lastviewed = g_iPlayerLastViewedAd[i];
-		if (lastviewed == 0 || (now - lastviewed) < iReViewTime)
-			continue;
-		
-		ChangeState(i, kAwaitingAd);
-		CreateTimer(2.0, LoadPage, GetClientSerial(i), TIMER_FLAG_NO_MAPCHANGE);
+		g_iLastAdWave = GetTime();
+		return; //Skip this advertisement wave
+	}
+	
+	new iReViewTime = GetReViewTime();
+	if  ((GetTime() - g_iLastAdWave) > iReViewTime)
+	{
+		for (new i = 1; i <= MaxClients; ++i)
+		{
+			if (!IsClientInGame(i) || IsFakeClient(i))
+				continue;
+			/*
+			new lastviewed = g_iPlayerLastViewedAd[i];
+			if (lastviewed == 0 || (now - lastviewed) < iReViewTime)
+				continue;
+			*/
+			ChangeState(i, kAwaitingAd);
+			CreateTimer(2.0, LoadPage, GetClientSerial(i), TIMER_FLAG_NO_MAPCHANGE);
+		}
+		g_iLastAdWave = GetTime();
 	}
 }
 
