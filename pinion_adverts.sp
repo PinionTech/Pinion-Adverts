@@ -21,6 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.10.1 <-> 2012 11/10 - Caelan Borowiec
+		Fixed incompatible plugin message displaying with url-encoded text
+		Added support for displaying advertisements after Left 4 Dead 1/Left 4 Dead 2 map stage transitions
+		Added advertisement immunity and related configuration settings
 	1.9.0 <-> 2012 10/31 - Caelan Borowiec
 		Added an error message to alert users if sm_motdredirect_url has not been assigned a value.
 		Added functionality to check for incompatible plugins and display a notice via the MOTD
@@ -107,7 +111,7 @@ enum
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.9.0-pre"
+#define PLUGIN_VERSION "1.10.0-pre"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -158,6 +162,7 @@ new Handle:g_ConVar_URL;
 new Handle:g_ConVarCooldown;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
+new Handle:g_ConVarImmunityEnabled;
 
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
@@ -221,6 +226,7 @@ public OnPluginStart()
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad at next round end if they have not seen it recently");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "40", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 30.0);
+	g_ConVarImmunityEnabled = CreateConVar("sm_advertisement_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -306,12 +312,14 @@ public OnAllPluginsLoaded()
 		new Handle:hMOTD = OpenFile("motd.txt", "w");
 		if (hMOTD != INVALID_HANDLE)
 		{
-			ReplaceString(sData, sizeof(sData), " ", "+");
-			WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sData);
+			new String:sDataEscape[128];
+			strcopy(sDataEscape, sizeof(sDataEscape), sData);
+			ReplaceString(sDataEscape, sizeof(sDataEscape), " ", "+");
+			WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sDataEscape);
 		}
 		CloseHandle(hMOTD);
 		
-		SetFailState("This plugin cannot run while %s is loaded.  Please remove %s to use this plugin.", sData, sData);
+		SetFailState("This plugin cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 	}
 }
 
@@ -346,6 +354,10 @@ SetupReView()
 	if (g_Game == kGameTF2)
 	{
 		HookEvent("teamplay_win_panel", Event_RoundEnd, EventHookMode_PostNoCopy);
+	}
+	else if (g_Game == kGameL4D2) // kGameL4D
+	{
+		HookEvent("player_transitioned", Event_PlayerTransitioned);
 	}
 }
 
@@ -415,6 +427,25 @@ public Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 	}
 }
 
+// Called when a player regains control of a character (after a map-stage load)
+// This is *not* called when a player initially connects
+// This is called for each player on the server
+public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	/*
+	if (!IsReViewEnabled())
+		return;
+	*/
+	
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!IsClientInGame(client) || IsFakeClient(client))
+		return;
+	
+	ChangeState(client, kAwaitingAd);
+	CreateTimer(1.0, LoadPage, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+	//ShowMOTDPanel(client, "Some Text Here", "http://google.com", MOTDPANEL_TYPE_URL);
+}
+
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
 	new client = players[0];
@@ -471,6 +502,9 @@ public Action:LoadPage(Handle:timer, any:serial)
 	new client = GetClientFromSerial(serial);
 	
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
+		return Plugin_Stop;
+	
+	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
 		return Plugin_Stop;
 	
 	new Handle:kv = CreateKeyValues("data");
