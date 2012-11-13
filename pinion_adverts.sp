@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.1 <-> 2012 11/13 - Caelan Borowiec
+		Moved round-end advertisements to now show during setup time at the start of the round.
 	1.11.1 <-> 2012 11/11 - Caelan Borowiec
 		Corrected version numbering in the #define
 		Added plugin version number to the query string
@@ -124,7 +126,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.11.1-pre"
+#define PLUGIN_VERSION "1.12.1-pre"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -369,7 +371,8 @@ SetupReView()
 	// only support on TF2 while testing
 	if (g_Game == kGameTF2)
 	{
-		HookEvent("teamplay_win_panel", Event_RoundEnd, EventHookMode_PostNoCopy);
+		//HookEvent("teamplay_win_panel", Event_RoundEnd, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
+		HookEvent("teamplay_round_active", Event_RoundActive, EventHookMode_PostNoCopy);
 	}
 	else if (g_Game == kGameL4D2) // kGameL4D
 	{
@@ -421,7 +424,12 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 	g_bPlayerActivated[client] = true;
 }
 
-public Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
+public OnMapEnd()
+{
+	g_iLastAdWave = -1;	// Reset the value so adverts aren't triggered the first round after a map load
+}
+
+public Event_RoundActive(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if (!IsReViewEnabled())
 		return;
