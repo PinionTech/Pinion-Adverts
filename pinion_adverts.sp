@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.2 <-> 2012 11/13 - Caelan Borowiec
+		Disabled minimun display time feature in L4D and L4D2
 	1.12.1 <-> 2012 11/13 - Caelan Borowiec
 		Moved round-end advertisements to now show during setup time at the start of the round.
 	1.11.1 <-> 2012 11/11 - Caelan Borowiec
@@ -126,7 +128,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.1-pre"
+#define PLUGIN_VERSION "1.12.2-pre"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -571,7 +573,7 @@ public Action:LoadPage(Handle:timer, any:serial)
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
-	new bool:bUseCooldown = (g_Game != kGameCSGO && GetConVarBool(g_ConVarCooldown));
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && GetConVarBool(g_ConVarCooldown));
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
