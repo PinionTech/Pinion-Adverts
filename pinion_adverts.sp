@@ -21,19 +21,22 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	1.12.2 <-> 2012 11/13 - Caelan Borowiec
+	1.8.2-pre-6 <-> 2012 11/13 - Caelan Borowiec
+		Fixed adverts not working for Left 4 Dead 1 map stage transitions
+		Revised plugin versioning scheme
+	1.8.2-pre-5 <-> 2012 11/13 - Caelan Borowiec
 		Disabled minimun display time feature in L4D and L4D2
-	1.12.1 <-> 2012 11/13 - Caelan Borowiec
+	1.8.2-pre-4 <-> 2012 11/13 - Caelan Borowiec
 		Moved round-end advertisements to now show during setup time at the start of the round.
-	1.11.1 <-> 2012 11/11 - Caelan Borowiec
+	1.8.2-pre-3 <-> 2012 11/11 - Caelan Borowiec
 		Corrected version numbering in the #define
 		Added plugin version number to the query string
 		Changed TF2 end-round advertisement handling:  Now all players will see an ad during the same round-end period after a global timer elapses.
-	1.10.1 <-> 2012 11/10 - Caelan Borowiec
+	1.8.2-pre-2 <-> 2012 11/10 - Caelan Borowiec
 		Fixed incompatible plugin message displaying with url-encoded text
 		Added support for displaying advertisements after Left 4 Dead 1/Left 4 Dead 2 map stage transitions
 		Added advertisement immunity and related configuration settings
-	1.9.0 <-> 2012 10/31 - Caelan Borowiec
+	1.8.2-pre-1 <-> 2012 10/31 - Caelan Borowiec
 		Added an error message to alert users if sm_motdredirect_url has not been assigned a value.
 		Added functionality to check for incompatible plugins and display a notice via the MOTD
 		Updated plugin comments.
@@ -128,7 +131,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.2-pre"
+#define PLUGIN_VERSION "1.8.2-pre-6"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -376,7 +379,7 @@ SetupReView()
 		//HookEvent("teamplay_win_panel", Event_RoundEnd, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
 		HookEvent("teamplay_round_active", Event_RoundActive, EventHookMode_PostNoCopy);
 	}
-	else if (g_Game == kGameL4D2) // kGameL4D
+	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
 		HookEvent("player_transitioned", Event_PlayerTransitioned);
 	}
