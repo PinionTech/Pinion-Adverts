@@ -21,6 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.8.2-pre-7 <-> 2012 11/16 - Caelan Borowiec
+		Changed event used for TF2 round-start adverts so that ads are displayed eariler.
+		Renamed ConVar sm_advertisement_immunity_enable to sm_motdredirect_immunity_enable to be consistant with other cvar names.
+		Made advertisement time restrictions apply to ads shown after L4D1/L4D2 map stage transitions.
+		Updated sm_motdredirect_url checking code to prevent false-positives from being logged.
+		Updated motd.txt replacement code to prevent overwriting the backup file.
+		MOTD window will now auto-close after two minutes.
 	1.8.2-pre-6 <-> 2012 11/13 - Caelan Borowiec
 		Fixed adverts not working for Left 4 Dead 1 map stage transitions
 		Revised plugin versioning scheme
@@ -131,7 +138,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8.2-pre-6"
+#define PLUGIN_VERSION "1.8.2-pre-7"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -196,12 +203,10 @@ enum EPlayerState
 }
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
-
-//new g_iPlayerLastViewedAd[MAXPLAYERS+1] = {0, ...};
+new Handle:g_hPlayerLastViewedAd = INVALID_HANDLE;
 new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player leaves the server.
 
 #define SECONDS_IN_MINUTE 60
-// 40 minutes
 #define GetReViewTime() (GetConVarInt(g_ConVarReViewTime) * SECONDS_IN_MINUTE)
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
@@ -246,8 +251,8 @@ public OnPluginStart()
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad at next round end if they have not seen it recently");
-	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "40", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 30.0);
-	g_ConVarImmunityEnabled = CreateConVar("sm_advertisement_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
+	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "40", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
+	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -292,6 +297,12 @@ public OnConfigsExecuted()
 {
 	// Synchronize Cvar Cache after configuration loaded
 	RefreshCvarCache();
+	
+	decl String:szInitialBaseURL[128];
+	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
+	
+	if (StrEqual(szInitialBaseURL, ""))
+		LogError("ConVar sm_motdredirect_url has not been set:  Please check your pinion_adverts config file.");
 }
 
 // Called after all plugins are loaded
@@ -327,19 +338,21 @@ public OnAllPluginsLoaded()
 	
 	if (FoundPlugin == true)
 	{
-		if (FileExists("motd.txt"))
+		if (FileExists("motd.txt") && !FileExists("motd_backup.txt"))
 			RenameFile("motd.txt", "motd_backup.txt");
 		
-		new Handle:hMOTD = OpenFile("motd.txt", "w");
-		if (hMOTD != INVALID_HANDLE)
+		if (!FileExists("motd.txt"))
 		{
-			new String:sDataEscape[128];
-			strcopy(sDataEscape, sizeof(sDataEscape), sData);
-			ReplaceString(sDataEscape, sizeof(sDataEscape), " ", "+");
-			WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sDataEscape);
+			new Handle:hMOTD = OpenFile("motd.txt", "w");
+			if (hMOTD != INVALID_HANDLE)
+			{
+				new String:sDataEscape[128];
+				strcopy(sDataEscape, sizeof(sDataEscape), sData);
+				ReplaceString(sDataEscape, sizeof(sDataEscape), " ", "+");
+				WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sDataEscape);
+			}
+			CloseHandle(hMOTD);
 		}
-		CloseHandle(hMOTD);
-		
 		SetFailState("This plugin cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 	}
 }
@@ -356,9 +369,6 @@ RefreshCvarCache()
 	// Build and cache url/ip/port string
 	decl String:szInitialBaseURL[128];
 	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
-	
-	if (StrEqual(szInitialBaseURL, ""))
-		LogError("CVar sm_motdredirect_url has not been set:  Please check your pinion_adverts config file.");
 	
 	new hostip = GetConVarInt(FindConVar("hostip"));
 	new hostport = GetConVarInt(FindConVar("hostport"));
@@ -377,20 +387,22 @@ SetupReView()
 	if (g_Game == kGameTF2)
 	{
 		//HookEvent("teamplay_win_panel", Event_RoundEnd, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
-		HookEvent("teamplay_round_active", Event_RoundActive, EventHookMode_PostNoCopy);
+		HookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
+		g_hPlayerLastViewedAd = CreateTrie();
 		HookEvent("player_transitioned", Event_PlayerTransitioned);
+		HookEvent("player_disconnect", Event_PlayerDisconnected);
 	}
 }
 
 public OnClientConnected(client)
 {
 	ChangeState(client, kAwaitingAd);
-	
 	g_bPlayerActivated[client] = false;
 }
+
 
 public Action:Event_DoPageHit(Handle:timer, any:serial)
 {
@@ -434,7 +446,7 @@ public OnMapEnd()
 	g_iLastAdWave = -1;	// Reset the value so adverts aren't triggered the first round after a map load
 }
 
-public Event_RoundActive(Handle:event, const String:name[], bool:dontBroadcast)
+public Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if (!IsReViewEnabled())
 		return;
@@ -452,11 +464,7 @@ public Event_RoundActive(Handle:event, const String:name[], bool:dontBroadcast)
 		{
 			if (!IsClientInGame(i) || IsFakeClient(i))
 				continue;
-			/*
-			new lastviewed = g_iPlayerLastViewedAd[i];
-			if (lastviewed == 0 || (now - lastviewed) < iReViewTime)
-				continue;
-			*/
+
 			ChangeState(i, kAwaitingAd);
 			CreateTimer(2.0, LoadPage, GetClientSerial(i), TIMER_FLAG_NO_MAPCHANGE);
 		}
@@ -464,23 +472,57 @@ public Event_RoundActive(Handle:event, const String:name[], bool:dontBroadcast)
 	}
 }
 
+public OnClientAuthorized(client, const String:SteamID[])
+{
+	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
+	{
+		new n;
+		if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, n))
+			SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
+	}
+}
+
+//Event_PlayerDisconnected will only be called for true disconnects
+public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	decl String:SteamID[32];
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+}
+
 // Called when a player regains control of a character (after a map-stage load)
 // This is *not* called when a player initially connects
 // This is called for each player on the server
 public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:dontBroadcast)
-{
-	/*
+{	
 	if (!IsReViewEnabled())
 		return;
-	*/
+		
+	new now = GetTime();
+	new iReViewTime = GetReViewTime();
 	
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	decl String:SteamID[32];
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	
+	new iLastAdView;
+	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, iLastAdView))
+	{
+		SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
+		return;
+	}
+	
 	if (!IsClientInGame(client) || IsFakeClient(client))
 		return;
 	
+	if ((now - iLastAdView) < iReViewTime)
+		return;
+
 	ChangeState(client, kAwaitingAd);
-	CreateTimer(1.0, LoadPage, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
-	//ShowMOTDPanel(client, "Some Text Here", "http://google.com", MOTDPANEL_TYPE_URL);
+	CreateTimer(2.0, LoadPage, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+	
+	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
 public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
@@ -590,9 +632,17 @@ public Action:LoadPage(Handle:timer, any:serial)
 	else
 		ChangeState(client, kViewingAd);
 	
-	
+	CreateTimer(120.0, ClosePage, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 	return Plugin_Stop;
 }
+
+public Action:ClosePage(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+	ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+}
+
 
 ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show=true, usermessageFlags=0)
 {
