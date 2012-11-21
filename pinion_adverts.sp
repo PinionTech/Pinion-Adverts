@@ -22,7 +22,6 @@ Configuration Variables: See pinion_adverts.cfg.
 
 Changelog
 	1.8.2-pre-9 <-> 2012 11/20 - Caelan Borowiec
-		Added default value for cvar sm_motdredirect_url
 		Lowered the default value of sm_motdredirect_review_time from 40 to 30
 	1.8.2-pre-8 <-> 2012 11/20 - Caelan Borowiec
 		Added sm_motdredirect_tf2_review_event cvar to configure if 'review' ads are shown at round end or round start in TF2
@@ -256,7 +255,7 @@ public OnPluginStart()
 	AddCommandListener(PageClosed, "closed_htmlpage");
 	
 	// Specify console variables used to configure plugin
-	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "http://motd.pinion.gg/COMMUNITY/GAME/motd.html", "Target URL to replace MOTD");
+	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
