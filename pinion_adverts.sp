@@ -21,9 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.8.2-pre-8 <-> 2012 11/20 - Caelan Borowiec
+		Added sm_motdredirect_tf2_review_event cvar to configure if 'review' ads are shown at round end or round start in TF2
+		Added a check to prevent errors in ClosePage()
+		Added checks to prevent errors when calling GetClientAuthString
 	1.8.2-pre-7 <-> 2012 11/16 - Caelan Borowiec
 		Changed event used for TF2 round-start adverts so that ads are displayed eariler.
-		Renamed ConVar sm_advertisement_immunity_enable to sm_motdredirect_immunity_enable to be consistant with other cvar names.
+		Renamed ConVar sm_advertisement_immunity_enable to sm_motdredirect_immunity_enable to be consistent with other cvar names.
 		Made advertisement time restrictions apply to ads shown after L4D1/L4D2 map stage transitions.
 		Updated sm_motdredirect_url checking code to prevent false-positives from being logged.
 		Updated motd.txt replacement code to prevent overwriting the backup file.
@@ -138,7 +142,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8.2-pre-7"
+#define PLUGIN_VERSION "1.8.2-pre-8"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -190,6 +194,7 @@ new Handle:g_ConVarCooldown;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
+new Handle:g_ConVarTF2EventOption;
 
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
@@ -251,6 +256,7 @@ public OnPluginStart()
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad at next round end if they have not seen it recently");
+	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "40", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
 	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
@@ -386,8 +392,8 @@ SetupReView()
 	// only support on TF2 while testing
 	if (g_Game == kGameTF2)
 	{
-		//HookEvent("teamplay_win_panel", Event_RoundEnd, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
-		HookEvent("teamplay_round_start", Event_RoundStart, EventHookMode_PostNoCopy);
+		HookEvent("teamplay_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
+		HookEvent("teamplay_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
@@ -446,9 +452,13 @@ public OnMapEnd()
 	g_iLastAdWave = -1;	// Reset the value so adverts aren't triggered the first round after a map load
 }
 
-public Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if (!IsReViewEnabled())
+		return;
+		
+	new iEventChoice = GetConVarInt(g_ConVarTF2EventOption);
+	if ((StrEqual(name, "teamplay_round_start", false) && iEventChoice != 1) || (StrEqual(name, "teamplay_win_panel", false) && iEventChoice != 2))
 		return;
 	
 	if (g_iLastAdWave == -1) // Time counter has been reset or has not started.  Start it now.
@@ -486,6 +496,9 @@ public OnClientAuthorized(client, const String:SteamID[])
 public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || !IsClientAuthorized(client))
+		return;
+	
 	decl String:SteamID[32];
 	GetClientAuthString(client, SteamID, sizeof(SteamID));
 	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
@@ -503,6 +516,9 @@ public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:d
 	new iReViewTime = GetReViewTime();
 	
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || !IsClientAuthorized(client))
+		return;
+	
 	decl String:SteamID[32];
 	GetClientAuthString(client, SteamID, sizeof(SteamID));
 	
@@ -639,6 +655,8 @@ public Action:LoadPage(Handle:timer, any:serial)
 public Action:ClosePage(Handle:timer, any:serial)
 {
 	new client = GetClientFromSerial(serial);
+	if (!client)
+		return;
 	ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 }
