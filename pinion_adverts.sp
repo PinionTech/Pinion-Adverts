@@ -21,6 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.8.2-pre-10 <-> 2012 11/28 - Caelan Borowiec
+		Converted LoadPage() to use DataTimers
+		Added code to pass data indicating what triggered an ad view to the backend
+		Fixed issue with admin immunity functionality
 	1.8.2-pre-9 <-> 2012 11/20 - Caelan Borowiec
 		Lowered the default value of sm_motdredirect_review_time from 40 to 30
 	1.8.2-pre-8 <-> 2012 11/20 - Caelan Borowiec
@@ -137,14 +141,15 @@ enum
 // TODO: Ad trigger detection
 enum loadTigger
 {
-	AD_TRIGGER_UNDEFINED,
+	AD_TRIGGER_UNDEFINED = 0,
 	AD_TRIGGER_CONNECT,
 	AD_TRIGGER_PLAYER_TRANSITION,
 	AD_TRIGGER_GLOBAL_TIMER,
+	AD_TRIGGER_GLOBAL_TIMER_ROUNDEND,
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8.2-pre-8"
+#define PLUGIN_VERSION "1.8.2-pre-10"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -478,7 +483,10 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 				continue;
 
 			ChangeState(i, kAwaitingAd);
-			CreateTimer(2.0, LoadPage, GetClientSerial(i), TIMER_FLAG_NO_MAPCHANGE);
+			new Handle:pack;
+			CreateDataTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+			WritePackCell(pack, GetClientSerial(i));
+			WritePackCell(pack, AD_TRIGGER_GLOBAL_TIMER_ROUNDEND);
 		}
 		g_iLastAdWave = GetTime();
 	}
@@ -538,7 +546,10 @@ public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:d
 		return;
 
 	ChangeState(client, kAwaitingAd);
-	CreateTimer(2.0, LoadPage, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+	new Handle:pack;
+	CreateDataTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	WritePackCell(pack, GetClientSerial(client));
+	WritePackCell(pack, AD_TRIGGER_PLAYER_TRANSITION);
 	
 	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
@@ -555,7 +566,10 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	if (strcmp(buffer, "info") != 0)
 		return Plugin_Continue;
 	
-	CreateTimer(0.1, LoadPage, GetClientSerial(players[0]));
+	new Handle:pack;
+	CreateDataTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	WritePackCell(pack, GetClientSerial(players[0]));
+	WritePackCell(pack, AD_TRIGGER_CONNECT);
 
 	return Plugin_Handled;
 }
@@ -573,7 +587,10 @@ public Action:PageClosed(client, const String:command[], argc)
 		}
 		case kViewingAd:
 		{
-			LoadPage(INVALID_HANDLE, GetClientSerial(client));
+			new Handle:pack = CreateDataPack();
+			WritePackCell(pack, GetClientSerial(client));
+			WritePackCell(pack, AD_TRIGGER_UNDEFINED);
+			LoadPage(INVALID_HANDLE, pack);
 		}
 		case kAdClosing:
 		{
@@ -594,14 +611,17 @@ public Action:PageClosed(client, const String:command[], argc)
 	return Plugin_Continue;
 }
 
-public Action:LoadPage(Handle:timer, any:serial)
+public Action:LoadPage(Handle:timer, Handle:pack)
 {
-	new client = GetClientFromSerial(serial);
+	ResetPack(pack);
+	new client = GetClientFromSerial(ReadPackCell(pack));
+	new trigger = ReadPackCell(pack);
+	CloseHandle(pack);
 	
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
+	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION) && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
 		return Plugin_Stop;
 	
 	new Handle:kv = CreateKeyValues("data");
@@ -621,7 +641,7 @@ public Action:LoadPage(Handle:timer, any:serial)
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
 		
 		decl String:szURL[128];
-		Format(szURL, sizeof(szURL), "%s&steamid=%s", g_BaseURL, szAuth);
+		Format(szURL, sizeof(szURL), "%s&steamid=%s&trigger=%i", g_BaseURL, szAuth, trigger);
 		
 		KvSetString(kv, "msg",	szURL);
 	}
