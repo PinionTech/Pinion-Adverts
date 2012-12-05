@@ -21,6 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.8.2-pre-11 <-> 2012 12/5 - Caelan Borowiec
+		Changed the force_min_duration cvar handling so that the delay length will now match the cvar value.
+		Fixed a bug that would prevent a player from seeing the jointeam menu if they idled too long after joining the server.
+		Fixed the round-end option for re-view ads not working on Arena maps.
 	1.8.2-pre-10 <-> 2012 11/28 - Caelan Borowiec
 		Converted LoadPage() to use DataTimers
 		Added code to pass data indicating what triggered an ad view to the backend
@@ -149,7 +153,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8.2-pre-10"
+#define PLUGIN_VERSION "1.8.2-pre-11"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -161,7 +165,7 @@ public Plugin:myinfo =
 
 // Approximately 5 seconds from MotD display.
 // Time starts from player_activate, a few seconds after Motd is sent, but a few seconds before it actually loads
-#define WAIT_TIME 8
+//#define WAIT_TIME 8
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
@@ -261,7 +265,7 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "1", "Prevent the MOTD from being closed for 5 seconds.");
+	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (min: 15 sec, 0 = disabled).", 0, true, 0.0, true, 30.0);
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
@@ -401,6 +405,7 @@ SetupReView()
 	{
 		HookEvent("teamplay_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 		HookEvent("teamplay_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
+		HookEvent("arena_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
@@ -465,7 +470,7 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 		return;
 		
 	new iEventChoice = GetConVarInt(g_ConVarTF2EventOption);
-	if ((StrEqual(name, "teamplay_round_start", false) && iEventChoice != 1) || (StrEqual(name, "teamplay_win_panel", false) && iEventChoice != 2))
+	if ((StrEqual(name, "teamplay_round_start", false) && iEventChoice != 1) || ((StrEqual(name, "teamplay_win_panel", false) || StrEqual(name, "arena_win_panel", false)) && iEventChoice != 2))
 		return;
 	
 	if (g_iLastAdWave == -1) // Time counter has been reset or has not started.  Start it now.
@@ -655,7 +660,8 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && GetConVarBool(g_ConVarCooldown));
+	new iCooldown = GetConVarInt(g_ConVarCooldown);
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
@@ -669,17 +675,24 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	else
 		ChangeState(client, kViewingAd);
 	
-	CreateTimer(120.0, ClosePage, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+	new Handle:pack2;
+	CreateDataTimer(120.0, ClosePage, pack2, TIMER_FLAG_NO_MAPCHANGE);
+	WritePackCell(pack2, GetClientSerial(client));
+	WritePackCell(pack2, trigger);
 	return Plugin_Stop;
 }
 
-public Action:ClosePage(Handle:timer, any:serial)
+public Action:ClosePage(Handle:timer, Handle:pack)
 {
-	new client = GetClientFromSerial(serial);
+	ResetPack(pack);
+	new client = GetClientFromSerial(ReadPackCell(pack));
+	new trigger = ReadPackCell(pack);
+	
 	if (!client)
 		return;
 	ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-	ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+	if (trigger != _:AD_TRIGGER_CONNECT)
+		ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 }
 
 
@@ -741,7 +754,15 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		return Plugin_Continue;
 	
 	new Float:flStartTime = ReadPackFloat(data);
-	new timeleft = WAIT_TIME - RoundToFloor(GetGameTime() - flStartTime);
+	new iCooldown = GetConVarInt(g_ConVarCooldown);
+	if (iCooldown > 30)
+		iCooldown = 30;
+	else if (iCooldown < 15)
+		iCooldown = 15;
+		
+	iCooldown = iCooldown + 3;
+	
+	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
 		PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
