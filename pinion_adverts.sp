@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.8.2-pre-12 <-> 2012 12/7 - Caelan Borowiec
+		Fixed a bug that would prevent a player from seeing the jointeam menu if they idled too long after joining the server (For real this time).
+		Fixed a resulting bug that would open a blank page two minutes after joining the server.
 	1.8.2-pre-11 <-> 2012 12/5 - Caelan Borowiec
 		Changed the force_min_duration cvar handling so that the delay length will now match the cvar value.
 		Fixed a bug that would prevent a player from seeing the jointeam menu if they idled too long after joining the server.
@@ -153,7 +156,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.8.2-pre-11"
+#define PLUGIN_VERSION "1.8.2-pre-12"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -686,13 +689,17 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
-	new trigger = ReadPackCell(pack);
 	
-	if (!client)
-		return;
-	ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-	if (trigger != _:AD_TRIGGER_CONNECT)
-		ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+	if (GetState(client) == kAdClosing || GetState(client) == kViewingAd)	//Ad is loaded
+	{
+		new trigger = ReadPackCell(pack);
+		
+		if (!client)
+			return;
+		ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
+		if (trigger != _:AD_TRIGGER_CONNECT)
+			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+	}
 }
 
 
