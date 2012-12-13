@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	 1.12.12 <-> 2012 12/12 - Caelan Borowiec
+		Version bump
 	1.8.2-pre-12 <-> 2012 12/7 - Caelan Borowiec
 		Fixed a bug that would prevent a player from seeing the jointeam menu if they idled too long after joining the server (For real this time).
 		Fixed a resulting bug that would open a blank page two minutes after joining the server.
