@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.12B <-> 2012 12/24 - Caelan Borowiec
+		Improved player immunity handling
+		Added immunity for inital connection advert's delay timer
 	1.12.12 <-> 2012 12/12 - Caelan Borowiec
 		Version bump
 	1.8.2-pre-12 <-> 2012 12/7 - Caelan Borowiec
@@ -158,7 +161,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.12"
+#define PLUGIN_VERSION "1.12.12B"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -271,7 +274,7 @@ public OnPluginStart()
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (min: 15 sec, 0 = disabled).", 0, true, 0.0, true, 30.0);
-	g_ConVarReView = CreateConVar("sm_motdredirect_review", "1", "Set clients to re-view ad next round if they have not seen it recently");
+	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
 	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
@@ -630,8 +633,12 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION) && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
-		return Plugin_Stop;
+	new bool:bClientHasImmunity = false;
+	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
+		bClientHasImmunity = true;
+	
+	if (bClientHasImmunity && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
+		return Plugin_Stop; //Cancel re-view ads
 	
 	new Handle:kv = CreateKeyValues("data");
 
@@ -666,7 +673,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	CloseHandle(kv);
 	
 	new iCooldown = GetConVarInt(g_ConVarCooldown);
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0);
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0 && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
