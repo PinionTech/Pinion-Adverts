@@ -21,7 +21,11 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	 1.12.12 <-> 2012 12/12 - Caelan Borowiec
+	1.12.13 <-> 2013 1/20 - Caelan Borowiec
+		Patched a possible memory leak
+		Improved player immunity handling
+		Added immunity for inital connection advert's delay timer
+	1.12.12 <-> 2012 12/12 - Caelan Borowiec
 		Version bump
 	1.8.2-pre-12 <-> 2012 12/7 - Caelan Borowiec
 		Fixed a bug that would prevent a player from seeing the jointeam menu if they idled too long after joining the server (For real this time).
@@ -158,7 +162,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.12"
+#define PLUGIN_VERSION "1.12.13"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -493,10 +497,10 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 				continue;
 
 			ChangeState(i, kAwaitingAd);
-			new Handle:pack;
-			CreateDataTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+			new Handle:pack = CreateDataPack();
 			WritePackCell(pack, GetClientSerial(i));
 			WritePackCell(pack, AD_TRIGGER_GLOBAL_TIMER_ROUNDEND);
+			CreateTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
 		}
 		g_iLastAdWave = GetTime();
 	}
@@ -556,11 +560,10 @@ public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:d
 		return;
 
 	ChangeState(client, kAwaitingAd);
-	new Handle:pack;
-	CreateDataTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	new Handle:pack = CreateDataPack();
 	WritePackCell(pack, GetClientSerial(client));
 	WritePackCell(pack, AD_TRIGGER_PLAYER_TRANSITION);
-	
+	CreateTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
 	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
@@ -576,11 +579,11 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 	if (strcmp(buffer, "info") != 0)
 		return Plugin_Continue;
 	
-	new Handle:pack;
-	CreateDataTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	new Handle:pack = CreateDataPack();
 	WritePackCell(pack, GetClientSerial(players[0]));
 	WritePackCell(pack, AD_TRIGGER_CONNECT);
-
+	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	
 	return Plugin_Handled;
 }
 
@@ -627,11 +630,17 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	new client = GetClientFromSerial(ReadPackCell(pack));
 	new trigger = ReadPackCell(pack);
 	
+	CloseHandle(pack);
+	
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION) && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
-		return Plugin_Stop;
+	new bool:bClientHasImmunity = false;
+	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
+		bClientHasImmunity = true;
+	
+	if (bClientHasImmunity && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
+		return Plugin_Stop; //Cancel re-view ads
 	
 	new Handle:kv = CreateKeyValues("data");
 
@@ -653,6 +662,11 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		Format(szURL, sizeof(szURL), "%s&steamid=%s&trigger=%i", g_BaseURL, szAuth, trigger);
 		
 		KvSetString(kv, "msg",	szURL);
+		
+		new Handle:pack2;
+		CreateDataTimer(120.0, ClosePage, pack2, TIMER_FLAG_NO_MAPCHANGE);
+		WritePackCell(pack2, GetClientSerial(client));
+		WritePackCell(pack2, trigger);
 	}
 
 	if (g_Game == kGameCSGO)
@@ -666,7 +680,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	CloseHandle(kv);
 	
 	new iCooldown = GetConVarInt(g_ConVarCooldown);
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0);
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0 && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
@@ -679,11 +693,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		ChangeState(client, kAdClosing);
 	else
 		ChangeState(client, kViewingAd);
-	
-	new Handle:pack2;
-	CreateDataTimer(120.0, ClosePage, pack2, TIMER_FLAG_NO_MAPCHANGE);
-	WritePackCell(pack2, GetClientSerial(client));
-	WritePackCell(pack2, trigger);
+
 	return Plugin_Stop;
 }
 
