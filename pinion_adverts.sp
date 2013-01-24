@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.14 <-> 2013 1/24 - Caelan Borowiec
+		Updated code to use CS:GO's new protobuff methods (Fixes the plugin not functioning in CS:GO).
 	1.12.13 <-> 2013 1/20 - Caelan Borowiec
 		Patched a possible memory leak
 		Improved player immunity handling
@@ -162,7 +164,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.13"
+#define PLUGIN_VERSION "1.12.14"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -567,7 +569,7 @@ public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:d
 	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
-public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
+public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], playersNum, bool:reliable, bool:init)
 {
 	new client = players[0];
 	if (playersNum > 1 || !IsClientInGame(client) || IsFakeClient(client)
@@ -575,9 +577,14 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:bf, const players[], playersN
 		return Plugin_Continue;
 
 	decl String:buffer[64];
-	BfReadString(bf, buffer, sizeof(buffer));
+	//if (GetUserMessageType() == UM_Protobuf)
+	if (g_Game == kGameCSGO) //We will use this for the time being so as to not require the /latest/ build of SourceMod everywhere
+		PbReadString(self, "name", buffer, sizeof(buffer));
+	else
+		BfReadString(self, buffer, sizeof(buffer));
+	
 	if (strcmp(buffer, "info") != 0)
-		return Plugin_Continue;
+			return Plugin_Continue;
 	
 	new Handle:pack = CreateDataPack();
 	WritePackCell(pack, GetClientSerial(players[0]));
@@ -717,43 +724,70 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 
 ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show=true, usermessageFlags=0)
 {
-	new Handle:bf = StartMessageOne("VGUIMenu", client, usermessageFlags);
-	BfWriteString(bf, name);
-	BfWriteByte(bf, show);
+	new Handle:msg = StartMessageOne("VGUIMenu", client, usermessageFlags);
 	
-	if (kv == INVALID_HANDLE)
+	//if (GetUserMessageType() == UM_Protobuf)
+	if (g_Game == kGameCSGO) //We will use this for the time being so as to not require the /latest/ build of SourceMod everywhere
 	{
-		BfWriteByte(bf, 0);
-	}
-	else
-	{	
-		if (!KvGotoFirstSubKey(kv, false))
+		PbSetString(msg, "name", name);
+		PbSetBool(msg, "show", true);
+
+		if (kv != INVALID_HANDLE && KvGotoFirstSubKey(kv, false))
 		{
-			BfWriteByte(bf, 0);
-		}
-		else
-		{
-			new keyCount = 0;
+			new Handle:subkey;
+
 			do
 			{
-				++keyCount;
+				decl String:key[128], String:value[128];
+				KvGetSectionName(kv, key, sizeof(key));
+				KvGetString(kv, NULL_STRING, value, sizeof(value), "");
+				
+				subkey = PbAddMessage(msg, "subkeys");
+				PbSetString(subkey, "name", key);
+				PbSetString(subkey, "str", value);
+
 			} while (KvGotoNextKey(kv, false));
-			
-			BfWriteByte(bf, keyCount);
-			
-			if (keyCount > 0)
+		}
+	}
+	else //BitBuffer
+	{
+		BfWriteString(msg, name);
+		BfWriteByte(msg, show);
+		
+		if (kv == INVALID_HANDLE)
+		{
+			BfWriteByte(msg, 0);
+		}
+		else
+		{	
+			if (!KvGotoFirstSubKey(kv, false))
 			{
-				KvGoBack(kv);
-				KvGotoFirstSubKey(kv, false);
+				BfWriteByte(msg, 0);
+			}
+			else
+			{
+				new keyCount = 0;
 				do
 				{
-					decl String:key[128], String:value[128];
-					KvGetSectionName(kv, key, sizeof(key));
-					KvGetString(kv, NULL_STRING, value, sizeof(value), "");
-					
-					BfWriteString(bf, key);
-					BfWriteString(bf, value);
+					++keyCount;
 				} while (KvGotoNextKey(kv, false));
+				
+				BfWriteByte(msg, keyCount);
+				
+				if (keyCount > 0)
+				{
+					KvGoBack(kv);
+					KvGotoFirstSubKey(kv, false);
+					do
+					{
+						decl String:key[128], String:value[128];
+						KvGetSectionName(kv, key, sizeof(key));
+						KvGetString(kv, NULL_STRING, value, sizeof(value), "");
+						
+						BfWriteString(msg, key);
+						BfWriteString(msg, value);
+					} while (KvGotoNextKey(kv, false));
+				}
 			}
 		}
 	}
