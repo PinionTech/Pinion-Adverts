@@ -238,6 +238,9 @@ new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player lea
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
+	// Backwards compatibility pre csgo/sm1.5
+	MarkNativeAsOptional("GetUserMessageType");
+	
 	// Game Detection
 	decl String:szGameDir[32];
 	GetGameFolderName(szGameDir, sizeof(szGameDir));
@@ -577,8 +580,7 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], player
 		return Plugin_Continue;
 
 	decl String:buffer[64];
-	//if (GetUserMessageType() == UM_Protobuf)
-	if (g_Game == kGameCSGO) //We will use this for the time being so as to not require the /latest/ build of SourceMod everywhere
+	if (GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
 		PbReadString(self, "name", buffer, sizeof(buffer));
 	else
 		BfReadString(self, buffer, sizeof(buffer));
@@ -726,8 +728,7 @@ ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show
 {
 	new Handle:msg = StartMessageOne("VGUIMenu", client, usermessageFlags);
 	
-	//if (GetUserMessageType() == UM_Protobuf)
-	if (g_Game == kGameCSGO) //We will use this for the time being so as to not require the /latest/ build of SourceMod everywhere
+	if (GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
 	{
 		PbSetString(msg, "name", name);
 		PbSetBool(msg, "show", true);
