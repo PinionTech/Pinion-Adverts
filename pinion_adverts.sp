@@ -21,9 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	1.12.12C <-> 2013 1/20 - Caelan Borowiec
+	1.12.13 <-> 2013 1/20 - Caelan Borowiec
 		Patched a possible memory leak
-	1.12.12B <-> 2012 12/24 - Caelan Borowiec
 		Improved player immunity handling
 		Added immunity for inital connection advert's delay timer
 	1.12.12 <-> 2012 12/12 - Caelan Borowiec
@@ -163,7 +162,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.12C"
+#define PLUGIN_VERSION "1.12.13"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
