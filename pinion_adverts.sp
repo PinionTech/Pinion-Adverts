@@ -142,6 +142,8 @@ Changelog
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
 
+//#define SHOW_CONSOLE_MESSAGES
+
 enum
 {
 	MOTDPANEL_CMD_NONE,
@@ -153,7 +155,6 @@ enum
 	MOTDPANEL_CMD_CHOOSE_TEAM,
 };
 
-// TODO: Ad trigger detection
 enum loadTigger
 {
 	AD_TRIGGER_UNDEFINED = 0,
@@ -444,12 +445,24 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	{
 		if (g_Game == kGameCSGO)
 		{
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
+			#endif
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 			FakeClientCommand(client, "joingame");
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "javascript:windowClosed() sent to client.");
+			#endif
 		}
 		else
 		{
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
+			#endif
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "javascript:windowClosed() sent to client.");
+			#endif
 		}
 	}
 }
@@ -599,13 +612,17 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], player
 public Action:PageClosed(client, const String:command[], argc)
 {
 	if (client == 0 || !IsClientInGame(client))
-		return Plugin_Continue;
+		return Plugin_Handled;
+		
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "Command closed_htmlpage detected.");
+	#endif
 	
 	switch (GetState(client))
 	{
 		case kAdDone:
 		{
-			return Plugin_Continue;
+			return Plugin_Handled;
 		}
 		case kViewingAd:
 		{
@@ -630,7 +647,7 @@ public Action:PageClosed(client, const String:command[], argc)
 		}
 	}
 	
-	return Plugin_Continue;
+	return Plugin_Handled;
 }
 
 public Action:LoadPage(Handle:timer, Handle:pack)
