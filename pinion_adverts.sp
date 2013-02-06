@@ -146,7 +146,7 @@ Changelog
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
 
-#define SHOW_CONSOLE_MESSAGES
+//#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
