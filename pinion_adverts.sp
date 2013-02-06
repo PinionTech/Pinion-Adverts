@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.15 <-> 2013 2/6 - Caelan Borowiec
+		Added dynamic minimum durations
+		Added countermeasure to deal with players bypassing the motd window
 	1.12.14 <-> 2013 1/24 - Caelan Borowiec
 		Updated code to use CS:GO's new protobuff methods (Fixes the plugin not functioning in CS:GO).
 	1.12.13 <-> 2013 1/20 - Caelan Borowiec
@@ -133,6 +136,7 @@ Changelog
 
 #include <sourcemod>
 #include <sdktools>
+#include <socket>
 
 #undef REQUIRE_PLUGIN
 #tryinclude <updater>
@@ -142,7 +146,7 @@ Changelog
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
 
-//#define SHOW_CONSOLE_MESSAGES
+#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -165,7 +169,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.14"
+#define PLUGIN_VERSION "1.12.15"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -175,9 +179,10 @@ public Plugin:myinfo =
 	url = "http://www.pinion.gg/"
 };
 
-// Approximately 5 seconds from MotD display.
-// Time starts from player_activate, a few seconds after Motd is sent, but a few seconds before it actually loads
-//#define WAIT_TIME 8
+// The number of times to attempt to query adback.pinion.gg
+#define MAX_QUERY_ATTEMPTS 10
+//The number of seconds to delay between failed query attempts
+#define QUERY_DELAY 3.0
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
@@ -218,6 +223,12 @@ new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
 new Handle:g_ConVarTF2EventOption;
+
+// Globals required/used by dynamic delay code
+new g_iCurrentIteration[MAXPLAYERS +1];
+new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
+new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
+
 
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
@@ -681,12 +692,13 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 
 	if (GetState(client) != kViewingAd)
 	{
+		GetClientAdvertDelay(client);
+		
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
 		
 		decl String:szURL[128];
 		Format(szURL, sizeof(szURL), "%s&steamid=%s&trigger=%i", g_BaseURL, szAuth, trigger);
-		
 		KvSetString(kv, "msg",	szURL);
 		
 		new Handle:pack2;
@@ -825,18 +837,27 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		return Plugin_Continue;
 	
 	new Float:flStartTime = ReadPackFloat(data);
-	new iCooldown = GetConVarInt(g_ConVarCooldown);
-	if (iCooldown > 30)
-		iCooldown = 30;
-	else if (iCooldown < 15)
-		iCooldown = 15;
-		
+	new iCooldown;
+	
+	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
+		iCooldown = g_iDynamicDisplayTime[client];
+	else if (g_iDynamicDisplayTime[client] < 0) //Backend said there was no video
+		iCooldown = 0;
+	else
+	{	
+		iCooldown = GetConVarInt(g_ConVarCooldown);
+		if (iCooldown > 30)
+			iCooldown = 30;
+		else if (iCooldown < 15)
+			iCooldown = 15;
+	}
 	iCooldown = iCooldown + 3;
 	
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
 		PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
+		ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		return Plugin_Continue;
 	}
 	
@@ -877,4 +898,162 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
 		;
+}
+
+
+
+// Code for Dynamic Durations
+GetClientAdvertDelay(client)
+{
+	g_iNumQueryAttempts[client] = 1;
+	g_iCurrentIteration[client] = 1;
+	g_iDynamicDisplayTime[client] = 0;
+	
+	new String:Domain[] = "adback.pinion.gg";
+	new String:sQueryURL[] = "";
+	
+	//Create the pack and fill it with data
+	new Handle:hPack = CreateDataPack();
+	WritePackString(hPack, sQueryURL); //Remote File
+	WritePackString(hPack, Domain); //Domain
+	WritePackCell(hPack, GetClientSerial(client));
+
+	//Create a socket connection and pass the pack handle
+	new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
+	SocketSetArg(socket, hPack);
+	SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, Domain, 80);
+}
+
+public OnSocketConnected(Handle:socket, any:hPack)
+{
+	new String:DownloadFrom[512], String:Domain[512], String:SteamID[32];
+	
+	ResetPack(hPack);
+	ReadPackString(hPack, DownloadFrom, sizeof(DownloadFrom)); //Remote path
+	ReadPackString(hPack, Domain, sizeof(Domain)); //Remote
+	
+	new client = GetClientFromSerial(ReadPackCell(hPack));
+	if (client == 0)
+		return;
+	
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	
+	
+	new String:buffer[1024];
+	Format(buffer, sizeof(buffer), "GET /%s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", DownloadFrom, SteamID, Domain);
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "\n\nQuerying url: %s/%s%s", Domain, DownloadFrom, SteamID);
+	#endif
+	SocketSend(socket, buffer);
+}
+
+public OnSocketReceive(Handle:socket, String:receiveData[], const dataSize, any:hPack)
+{
+	new String:DownloadFrom[512], String:Domain[512];
+	
+	ResetPack(hPack);
+	ReadPackString(hPack, DownloadFrom, sizeof(DownloadFrom)); //Remote path
+	ReadPackString(hPack, Domain, sizeof(Domain)); //Remote domain
+	new client = GetClientFromSerial(ReadPackCell(hPack));
+	if (client == 0)
+		return;
+
+	new pos = 0;
+	if (g_iCurrentIteration[client] == 1)
+	{
+		pos = 4;
+		while (!(receiveData[pos-4] == '\r' && receiveData[pos-3] == '\n' && receiveData[pos-2] == '\r' && receiveData[pos-1] == '\n'))
+			pos++;
+
+		new String:szHeader[pos-4];
+		strcopy(szHeader, pos-4, receiveData);
+		new lenPos = StrContains(szHeader, "Content-Length: ", false);
+		if (lenPos != -1)
+		{
+			lenPos += 16;
+			new String:szContentLength[32];
+			new x = 0;
+			while (szHeader[lenPos] != '\r' && szHeader[lenPos+1] != '\n')
+				szContentLength[x++] = szHeader[lenPos++];
+			
+			szContentLength[x] = '\0';
+		}
+	}
+
+	new String:sData[4096];
+	strcopy(sData, sizeof(sData), receiveData[pos]);
+	TrimString(sData);
+	
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "Query returned '%s'", sData);
+	#endif
+	if (!StrEqual(sData, ""))
+	{
+		new queryResult = StringToInt(sData);
+		if (queryResult == 0)
+		{
+			new Handle:pack = CloneHandle(hPack);
+			CreateTimer(QUERY_DELAY, QueryAgain, pack, TIMER_FLAG_NO_MAPCHANGE);
+		}
+		else
+		{
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Query finished, StringToInt returned %i", queryResult);
+			#endif
+			//Update the delay timer
+			g_iDynamicDisplayTime[client] = queryResult;
+		}
+	}
+	
+	g_iCurrentIteration[client]++;
+}
+
+// QueryAgain decides if a query should be reattempted and creates the query if yes
+public Action:QueryAgain(Handle:timer, Handle:hPack)
+{
+	new String:Domain[512];
+	ResetPack(hPack);
+	ReadPackString(hPack, Domain, sizeof(Domain));
+	ReadPackString(hPack, Domain, sizeof(Domain));
+	new client = GetClientFromSerial(ReadPackCell(hPack));
+	if (client == 0)
+	{
+		CloseHandle(hPack);
+		return;
+	}
+	
+	if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query failed: StringToInt returned 0.  Giving up after %i attempts.", g_iNumQueryAttempts[client]);
+		#endif
+		CloseHandle(hPack);
+		g_iNumQueryAttempts[client] = 1;
+	}
+	else
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query #%i failed: StringToInt returned 0.  Attempting query again.", g_iNumQueryAttempts[client]);
+		#endif
+		g_iNumQueryAttempts[client] ++;
+		
+		//Create a socket connection and pass the pack handle
+		g_iCurrentIteration[client] = 1;
+		new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
+		SocketSetArg(socket, hPack);
+		SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, Domain, 80);
+	}
+}
+
+public OnSocketError(Handle:socket, const errorType, const errorNum, any:hPack)
+{
+	LogError("Something went wrong querying the backend.  Socket error %d [errno %d]", errorType, errorNum);
+	CloseHandle(hPack);
+	CloseHandle(socket);
+}
+
+public OnSocketDisconnected(Handle:socket, any:hPack)
+{
+	CloseHandle(hPack);
+	CloseHandle(socket);
 }
