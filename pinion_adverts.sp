@@ -219,6 +219,7 @@ new EGame:g_Game = kGameUnsupported;
 // Console Variables
 new Handle:g_ConVar_URL;
 new Handle:g_ConVarCooldown;
+new Handle:g_ConVarMaxCooldown;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
@@ -291,7 +292,8 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (min: 15 sec, 0 = disabled).", 0, true, 0.0, true, 30.0);
+	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (Min: 15 sec, Max: 30 sec, 0 = Disables).", 0, true, 0.0, true, 30.0);
+	g_ConVarMaxCooldown = CreateConVar("sm_motdredirect_max_forced_duration", "-1", "The maximum amount of time the MOTD will be forced to remain open (Min: 15 sec. Max: 30 sec. 0 = no forced waiting).", 0, true, 0.0, true, 30.0);
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
@@ -717,7 +719,10 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
-	new iCooldown = GetConVarInt(g_ConVarCooldown);
+	new iCooldown = GetConVarInt(g_ConVarMaxCooldown);
+	if (iCooldown == -1)
+		iCooldown = GetConVarInt(g_ConVarCooldown);
+	
 	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0 && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
@@ -838,14 +843,34 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	
 	new Float:flStartTime = ReadPackFloat(data);
 	new iCooldown;
+
+	new iMaxCooldown = GetConVarInt(g_ConVarMaxCooldown);
+	if (iMaxCooldown == -1)
+		iMaxCooldown = GetConVarInt(g_ConVarCooldown);
 	
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
-		iCooldown = g_iDynamicDisplayTime[client];
-	else if (g_iDynamicDisplayTime[client] < 0) //Backend said there was no video
-		iCooldown = 0;
-	else
+	{
+		if (g_iDynamicDisplayTime[client] < iMaxCooldown)	// ...AND the backend's value is Not Greater than the server's set max
+			iCooldown = g_iDynamicDisplayTime[client]; // Use backend's value
+		else // Backend's value was longer than the max
+		{
+			iCooldown = iMaxCooldown; // Use the max
+			// Apply our bounds
+			if (iCooldown > 30)
+				iCooldown = 30;
+			else if (iCooldown < 15)
+				iCooldown = 15;
+		}
+	}
+	else if (g_iDynamicDisplayTime[client] < 0) //Backend said there was nothing
+	{
+		iCooldown = 0; // Ditch the cooldown
+	}
+	else // The backend didn't respond with anything valid!
 	{	
-		iCooldown = GetConVarInt(g_ConVarCooldown);
+		iCooldown = iMaxCooldown;
+		
+		// Apply our bounds
 		if (iCooldown > 30)
 			iCooldown = 30;
 		else if (iCooldown < 15)
