@@ -935,7 +935,7 @@ GetClientAdvertDelay(client)
 	g_iDynamicDisplayTime[client] = 0;
 	
 	new String:Domain[] = "adback.pinion.gg";
-	new String:sQueryURL[] = "";
+	new String:sQueryURL[] = "duration/";
 	
 	//Create the pack and fill it with data
 	new Handle:hPack = CreateDataPack();
