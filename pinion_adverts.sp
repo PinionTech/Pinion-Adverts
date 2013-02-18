@@ -169,7 +169,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.15"
+#define PLUGIN_VERSION "1.12.15b"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -695,7 +695,11 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 
 	if (GetState(client) != kViewingAd)
 	{
-		GetClientAdvertDelay(client);
+		new timeleft;
+		GetMapTimeLeft(timeleft);
+		
+		if (timeleft > 30 || timeleft < 0)
+			GetClientAdvertDelay(client);
 		
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
