@@ -161,11 +161,11 @@ enum
 
 enum loadTigger
 {
-	AD_TRIGGER_UNDEFINED = 0,
-	AD_TRIGGER_CONNECT,
-	AD_TRIGGER_PLAYER_TRANSITION,
-	AD_TRIGGER_GLOBAL_TIMER,
-	AD_TRIGGER_GLOBAL_TIMER_ROUNDEND,
+	AD_TRIGGER_UNDEFINED = 0,						// No data, this should never happen
+	AD_TRIGGER_CONNECT,								// Player joined the server
+	AD_TRIGGER_PLAYER_TRANSITION,				// L4D/L4D2 player regained control of a character after a stage transition
+	AD_TRIGGER_GLOBAL_TIMER,						// Not currently used
+	AD_TRIGGER_GLOBAL_TIMER_ROUNDEND,		// Re-view advertisement triggered at round end/round start
 };
 
 // Plugin definitions
@@ -394,7 +394,8 @@ public OnAllPluginsLoaded()
 				new String:sDataEscape[128];
 				strcopy(sDataEscape, sizeof(sDataEscape), sData);
 				ReplaceString(sDataEscape, sizeof(sDataEscape), " ", "+");
-				WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sDataEscape);
+				//WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sDataEscape);
+				WriteFileLine(hMOTD, "Pinion cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 			}
 			CloseHandle(hMOTD);
 		}
