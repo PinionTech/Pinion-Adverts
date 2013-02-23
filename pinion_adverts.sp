@@ -169,7 +169,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.15b"
+#define PLUGIN_VERSION "1.12.15c"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -229,6 +229,7 @@ new Handle:g_ConVarTF2EventOption;
 new g_iCurrentIteration[MAXPLAYERS +1];
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
 new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
+new bool:g_iIsMapActive = false;
 
 
 // Configuration
@@ -503,6 +504,12 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 public OnMapEnd()
 {
 	g_iLastAdWave = -1;	// Reset the value so adverts aren't triggered the first round after a map load
+	g_iIsMapActive = false;
+}
+
+public OnMapStart()
+{
+	g_iIsMapActive = true;
 }
 
 public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
@@ -698,7 +705,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		new timeleft;
 		GetMapTimeLeft(timeleft);
 		
-		if (timeleft > 30 || timeleft < 0)
+		if ((timeleft > 30 || timeleft < 0) && g_iIsMapActive)
 			GetClientAdvertDelay(client);
 		
 		decl String:szAuth[MAX_AUTH_LENGTH];
