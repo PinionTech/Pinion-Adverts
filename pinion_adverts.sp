@@ -292,8 +292,8 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (Min: 15 sec, Max: 30 sec, 0 = Disables).", 0, true, 0.0, true, 30.0);
-	g_ConVarMaxCooldown = CreateConVar("sm_motdredirect_max_forced_duration", "-1", "The maximum amount of time the MOTD will be forced to remain open (Min: 15 sec. Max: 30 sec. 0 = no forced waiting).", 0, true, 0.0, true, 30.0);
+	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (Min: 15 sec, Max: 40 sec, 0 = Disables).", 0, true, 0.0, true, 40.0);
+	g_ConVarMaxCooldown = CreateConVar("sm_motdredirect_max_forced_duration", "-1", "The maximum amount of time the MOTD will be forced to remain open (Min: 15 sec. Max: 40 sec. 0 = no forced waiting).", 0, true, 0.0, true, 40.0);
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
@@ -867,8 +867,8 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		{
 			iCooldown = iMaxCooldown; // Use the max
 			// Apply our bounds
-			if (iCooldown > 30)
-				iCooldown = 30;
+			if (iCooldown > 40)
+				iCooldown = 40;
 			else if (iCooldown < 15)
 				iCooldown = 15;
 		}
@@ -882,8 +882,8 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		iCooldown = iMaxCooldown;
 		
 		// Apply our bounds
-		if (iCooldown > 30)
-			iCooldown = 30;
+		if (iCooldown > 40)
+			iCooldown = 40;
 		else if (iCooldown < 15)
 			iCooldown = 15;
 	}
