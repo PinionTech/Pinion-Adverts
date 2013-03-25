@@ -21,6 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.16b <-> 2013 3/24 - Caelan Borowiec
+		Removed hard-coded 3 second addition to the delay
+		Changed the max wait time to a hard-coded 35 sec
+		Change the "you must wait" message to only show if the time left is 30 seconds or less
 	1.12.16 <-> 2013 3/24 - Caelan Borowiec
 		Added support for using cURL dynamic duration queries
 		Made cURL prefered query method
@@ -175,7 +179,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16"
+#define PLUGIN_VERSION "1.12.16b"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -224,8 +228,8 @@ new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
 new Handle:g_ConVar_URL;
-new Handle:g_ConVarCooldown;
-new Handle:g_ConVarMaxCooldown;
+//new Handle:g_ConVarCooldown;
+//new Handle:g_ConVarMaxCooldown;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
@@ -339,8 +343,8 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (Min: 15 sec, Max: 30 sec, 0 = Disables).", 0, true, 0.0, true, 30.0);
-	g_ConVarMaxCooldown = CreateConVar("sm_motdredirect_max_forced_duration", "-1", "The maximum amount of time the MOTD will be forced to remain open (Min: 15 sec. Max: 30 sec. 0 = no forced waiting).", 0, true, 0.0, true, 30.0);
+	//g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (Min: 15 sec, Max: 30 sec, 0 = Disables).", 0, true, 0.0, true, 30.0);
+	//g_ConVarMaxCooldown = CreateConVar("sm_motdredirect_max_forced_duration", "-1", "The maximum amount of time the MOTD will be forced to remain open (Min: 15 sec. Max: 30 sec. 0 = no forced waiting).", 0, true, 0.0, true, 30.0);
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
@@ -790,9 +794,12 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
+	new iCooldown = 35;
+	/*
 	new iCooldown = GetConVarInt(g_ConVarMaxCooldown);
 	if (iCooldown == -1)
 		iCooldown = GetConVarInt(g_ConVarCooldown);
+	*/
 	
 	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0 && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
@@ -914,10 +921,13 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	
 	new Float:flStartTime = ReadPackFloat(data);
 	new iCooldown;
-
+	new iMaxCooldown = 35;
+	
+	/*
 	new iMaxCooldown = GetConVarInt(g_ConVarMaxCooldown);
 	if (iMaxCooldown == -1)
 		iMaxCooldown = GetConVarInt(g_ConVarCooldown);
+	*/
 	
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
@@ -947,12 +957,13 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		else if (iCooldown < 15)
 			iCooldown = 15;
 	}
-	iCooldown = iCooldown + 3;
+	//iCooldown = iCooldown + 3;
 	
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
-		PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
+		if (timeleft <= 30)
+			PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
 		ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		return Plugin_Continue;
 	}
