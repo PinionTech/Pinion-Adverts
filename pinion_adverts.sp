@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.16 <-> 2013 3/24 - Caelan Borowiec
+		Added support for using cURL dynamic duration queries
+		Made cURL prefered query method
 	1.12.15 <-> 2013 2/6 - Caelan Borowiec
 		Added dynamic minimum durations
 		Added countermeasure to deal with players bypassing the motd window
@@ -136,10 +139,13 @@ Changelog
 
 #include <sourcemod>
 #include <sdktools>
+#undef REQUIRE_EXTENSIONS
+#include <cURL>
 #include <socket>
-
 #undef REQUIRE_PLUGIN
 #tryinclude <updater>
+
+
 
 #pragma semicolon 1
 
@@ -169,7 +175,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.15c"
+#define PLUGIN_VERSION "1.12.16"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -250,11 +256,22 @@ new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player lea
 #define SECONDS_IN_MINUTE 60
 #define GetReViewTime() (GetConVarInt(g_ConVarReViewTime) * SECONDS_IN_MINUTE)
 
+#define CURL_DEFAULT_OPT(%1) curl_easy_setopt_int_array(%1, CURL_Default_opt, sizeof(CURL_Default_opt))
+
+#define CURL_AVAILABLE()		(GetFeatureStatus(FeatureType_Native, "curl_easy_init") == FeatureStatus_Available)
+#define SOCKET_AVAILABLE()		(GetFeatureStatus(FeatureType_Native, "SocketCreate") == FeatureStatus_Available)
+
+
+new CURL_Default_opt[][2] = {
+	{_:CURLOPT_NOSIGNAL,1},
+	{_:CURLOPT_NOPROGRESS,1},
+	{_:CURLOPT_TIMEOUT,30},
+	{_:CURLOPT_CONNECTTIMEOUT,60},
+	{_:CURLOPT_VERBOSE,0}
+};
+
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
-	// Backwards compatibility pre csgo/sm1.5
-	MarkNativeAsOptional("GetUserMessageType");
-	
 	// Game Detection
 	decl String:szGameDir[32];
 	GetGameFolderName(szGameDir, sizeof(szGameDir));
@@ -275,12 +292,41 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 		return APLRes_Failure;
 	}
 	
+	// Backwards compatibility pre csgo/sm1.5
+	MarkNativeAsOptional("GetUserMessageType");
+	
+	// Mark cURL natives as optional
+	MarkNativeAsOptional("curl_OpenFile");
+	MarkNativeAsOptional("curl_slist");
+	MarkNativeAsOptional("curl_slist_append");
+	MarkNativeAsOptional("curl_easy_init");
+	MarkNativeAsOptional("curl_easy_setopt_function");
+	MarkNativeAsOptional("curl_easy_setopt_int_array");
+	MarkNativeAsOptional("curl_easy_setopt_handle");
+	MarkNativeAsOptional("curl_easy_setopt_string");
+	MarkNativeAsOptional("curl_easy_perform_thread");
+	MarkNativeAsOptional("curl_easy_strerror");
+	
+	// Mark Socket natives as optional
+	MarkNativeAsOptional("SocketCreate");
+	MarkNativeAsOptional("SocketSetArg");
+	MarkNativeAsOptional("SocketSetOption");
+	MarkNativeAsOptional("SocketConnect");
+	MarkNativeAsOptional("SocketSend");
+	
 	return APLRes_Success;
 }
 
 // Configure Environment
 public OnPluginStart()
 {
+	if (CURL_AVAILABLE())	// cURL or cURL and Sockets installed
+		LogMessage("The cURL extension has been detected and will be used for queries.");
+	else if (SOCKET_AVAILABLE())	// Socket, but no cURL
+		LogMessage("The Socket extension has been detected and will be used for queries.");
+	else //if (!CURL_AVAILABLE() && !SOCKET_AVAILABLE())
+		SetFailState("This plugin requires ether the Socket or the cURL extension to be installed.");
+
 	// Catch the MOTD
 	new UserMsg:VGUIMenu = GetUserMessageId("VGUIMenu");
 	if (VGUIMenu == INVALID_MESSAGE_ID)
@@ -331,10 +377,8 @@ public OnPluginStart()
 #if defined _updater_included
 public OnLibraryAdded(const String:name[])
 {
-    if (StrEqual(name, "updater"))
-    {
-        Updater_AddPlugin(UPDATE_URL);
-    }
+	if (StrEqual(name, "updater"))
+		Updater_AddPlugin(UPDATE_URL);
 }
 #endif
 
@@ -706,7 +750,22 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		GetMapTimeLeft(timeleft);
 		
 		if ((timeleft > 30 || timeleft < 0) && g_iIsMapActive)
-			GetClientAdvertDelay(client);
+		{
+			if (GetFeatureStatus(FeatureType_Native, "curl_easy_init") == FeatureStatus_Available)
+			{
+				g_iNumQueryAttempts[client] = 1;
+				g_iDynamicDisplayTime[client] = 0;
+				GetClientAdvertDelayCURL(client);
+			}
+			else if (GetFeatureStatus(FeatureType_Native, "SocketCreate") == FeatureStatus_Available)
+			{
+				GetClientAdvertDelaySocket(client);
+			}
+			else
+			{
+				SetFailState("cURL or Socket must be running for this plugin to function. Please load one of these extensions and reload this plugin.");
+			}
+		}
 		
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
@@ -938,9 +997,117 @@ stock bool:BGameUsesVGUIEnum()
 }
 
 
+// Dynamic Durations via cURL
+GetClientAdvertDelayCURL(client)
+{
+	if (client == 0)
+		return;
+	
+	new String:sQueryURL[84] = "http://adback.pinion.gg/duration/";
+	new String:SteamID[32];
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	
+	StrCat(sQueryURL, sizeof(sQueryURL), SteamID);
+	
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "\n\nQuerying url via cURL: %s", sQueryURL);
+	#endif
+	
+	new Handle:hcURL = curl_easy_init(); // Create a cURL handle
+	if (hcURL != INVALID_HANDLE)
+	{
+		CURL_DEFAULT_OPT(hcURL);
+		curl_easy_setopt_function(hcURL, CURLOPT_WRITEFUNCTION, WriteFunction, GetClientSerial(client));
+		curl_easy_setopt_string(hcURL, CURLOPT_URL, sQueryURL);
+		
+		curl_easy_perform_thread(hcURL, onCURLComplete, GetClientSerial(client));
+	}
+	else
+	{
+		LogError("Unable to create cURL handle!");
+	}
+}
 
-// Code for Dynamic Durations
-GetClientAdvertDelay(client)
+
+public onCURLComplete(Handle:hndl, CURLcode:code, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	if (client == 0)
+	{
+		CloseHandle(hndl);
+		return;	
+	}
+	
+	if (hndl != INVALID_HANDLE && code != CURLE_OK)
+	{
+		new String:error_buffer[256];
+		curl_easy_strerror(code, error_buffer, sizeof(error_buffer));
+		LogError("cURL Query Failed - %s", error_buffer);
+		CloseHandle(hndl);
+		return;
+	}
+	CloseHandle(hndl);
+}
+
+public WriteFunction(Handle:hndl, const String:buffer[], const bytes, const nmemb, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	
+	if (client == 0)
+		return bytes * nmemb;
+	
+	new String:sQueryData[((bytes * nmemb)+1)];
+	strcopy(sQueryData, ((bytes * nmemb)+1), buffer);
+	TrimString(sQueryData);
+	
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "Query returned '%s'", sQueryData);
+	#endif
+	if (!StrEqual(sQueryData, ""))
+	{
+		new queryResult = StringToInt(sQueryData);
+		if (queryResult == 0)
+		{
+			CreateTimer(QUERY_DELAY, QueryAgainCURL, serial, TIMER_FLAG_NO_MAPCHANGE);
+		}
+		else
+		{
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Query finished, StringToInt returned %i", queryResult);
+			#endif
+			//Update the delay timer
+			g_iDynamicDisplayTime[client] = queryResult;
+		}
+	}
+	return bytes * nmemb;
+}
+
+public Action:QueryAgainCURL(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	if (client == 0)
+		return;
+	
+	if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query failed: StringToInt returned 0.  Giving up after %i attempts.", g_iNumQueryAttempts[client]);
+		#endif
+		g_iNumQueryAttempts[client] = 1;
+	}
+	else
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query #%i failed: StringToInt returned 0.  Attempting query again.", g_iNumQueryAttempts[client]);
+		#endif
+		
+		g_iNumQueryAttempts[client] ++;
+		GetClientAdvertDelayCURL(client);
+	}
+}
+
+// Dynamic Durations via Socket
+GetClientAdvertDelaySocket(client)
 {
 	g_iNumQueryAttempts[client] = 1;
 	g_iCurrentIteration[client] = 1;
@@ -979,7 +1146,7 @@ public OnSocketConnected(Handle:socket, any:hPack)
 	new String:buffer[1024];
 	Format(buffer, sizeof(buffer), "GET /%s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", DownloadFrom, SteamID, Domain);
 	#if defined SHOW_CONSOLE_MESSAGES
-	PrintToConsole(client, "\n\nQuerying url: %s/%s%s", Domain, DownloadFrom, SteamID);
+	PrintToConsole(client, "\n\nQuerying url via Socket: %s/%s%s", Domain, DownloadFrom, SteamID);
 	#endif
 	SocketSend(socket, buffer);
 }
@@ -1030,7 +1197,7 @@ public OnSocketReceive(Handle:socket, String:receiveData[], const dataSize, any:
 		if (queryResult == 0)
 		{
 			new Handle:pack = CloneHandle(hPack);
-			CreateTimer(QUERY_DELAY, QueryAgain, pack, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(QUERY_DELAY, QueryAgainSocket, pack, TIMER_FLAG_NO_MAPCHANGE);
 		}
 		else
 		{
@@ -1045,8 +1212,8 @@ public OnSocketReceive(Handle:socket, String:receiveData[], const dataSize, any:
 	g_iCurrentIteration[client]++;
 }
 
-// QueryAgain decides if a query should be reattempted and creates the query if yes
-public Action:QueryAgain(Handle:timer, Handle:hPack)
+// QueryAgainSocket decides if a query should be reattempted and creates the query if yes
+public Action:QueryAgainSocket(Handle:timer, Handle:hPack)
 {
 	new String:Domain[512];
 	ResetPack(hPack);
