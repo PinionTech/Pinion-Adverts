@@ -21,6 +21,11 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.16c <-> 2013 3/25 - Caelan Borowiec
+		Removed bounds on the page-delay timer
+		Plugin will not run queries on games where dynamic page-delay durations are not supported
+		Plugin no longer requires cURL/Socket to be installed on games where dynamic page-delay durations are not supported
+		Pruned unused code
 	1.12.16b <-> 2013 3/24 - Caelan Borowiec
 		Removed hard-coded 3 second addition to the delay
 		Changed the max wait time to a hard-coded 35 sec
@@ -179,7 +184,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16b"
+#define PLUGIN_VERSION "1.12.16c"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -328,7 +333,7 @@ public OnPluginStart()
 		LogMessage("The cURL extension has been detected and will be used for queries.");
 	else if (SOCKET_AVAILABLE())	// Socket, but no cURL
 		LogMessage("The Socket extension has been detected and will be used for queries.");
-	else //if (!CURL_AVAILABLE() && !SOCKET_AVAILABLE())
+	else if (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D)
 		SetFailState("This plugin requires ether the Socket or the cURL extension to be installed.");
 
 	// Catch the MOTD
@@ -753,7 +758,8 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		new timeleft;
 		GetMapTimeLeft(timeleft);
 		
-		if ((timeleft > 30 || timeleft < 0) && g_iIsMapActive)
+		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
+		if ((timeleft > 120 || timeleft < 0) && g_iIsMapActive && bUseCooldown)
 		{
 			if (GetFeatureStatus(FeatureType_Native, "curl_easy_init") == FeatureStatus_Available)
 			{
@@ -794,14 +800,8 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
-	new iCooldown = 35;
-	/*
-	new iCooldown = GetConVarInt(g_ConVarMaxCooldown);
-	if (iCooldown == -1)
-		iCooldown = GetConVarInt(g_ConVarCooldown);
-	*/
-	
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0 && !bClientHasImmunity);
+
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
@@ -920,44 +920,18 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		return Plugin_Continue;
 	
 	new Float:flStartTime = ReadPackFloat(data);
-	new iCooldown;
-	new iMaxCooldown = 35;
 	
-	/*
-	new iMaxCooldown = GetConVarInt(g_ConVarMaxCooldown);
-	if (iMaxCooldown == -1)
-		iMaxCooldown = GetConVarInt(g_ConVarCooldown);
-	*/
+	new iCooldown = 35; // Default cooldown
 	
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
-		if (g_iDynamicDisplayTime[client] < iMaxCooldown)	// ...AND the backend's value is Not Greater than the server's set max
-			iCooldown = g_iDynamicDisplayTime[client]; // Use backend's value
-		else // Backend's value was longer than the max
-		{
-			iCooldown = iMaxCooldown; // Use the max
-			// Apply our bounds
-			if (iCooldown > 30)
-				iCooldown = 30;
-			else if (iCooldown < 15)
-				iCooldown = 15;
-		}
+		iCooldown = g_iDynamicDisplayTime[client]; // Use backend's value
 	}
 	else if (g_iDynamicDisplayTime[client] < 0) //Backend said there was nothing
 	{
 		iCooldown = 0; // Ditch the cooldown
 	}
-	else // The backend didn't respond with anything valid!
-	{	
-		iCooldown = iMaxCooldown;
-		
-		// Apply our bounds
-		if (iCooldown > 30)
-			iCooldown = 30;
-		else if (iCooldown < 15)
-			iCooldown = 15;
-	}
-	//iCooldown = iCooldown + 3;
+	//else // The backend didn't respond with anything valid!
 	
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
