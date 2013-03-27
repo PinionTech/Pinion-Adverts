@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.16d <-> 2013 3/26 - Caelan Borowiec
+		Changed the "you must wait" message to only display when a delay has been loaded from the backend.
 	1.12.16c <-> 2013 3/25 - Caelan Borowiec
 		Removed bounds on the page-delay timer
 		Plugin will not run queries on games where dynamic page-delay durations are not supported
@@ -184,7 +186,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16c"
+#define PLUGIN_VERSION "1.12.16d"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -936,8 +938,10 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
-		if (timeleft <= 30)
+		if (g_iDynamicDisplayTime[client] > 0)
 			PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
+		else
+			PrintCenterText(client, "Loading...");
 		ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		return Plugin_Continue;
 	}
