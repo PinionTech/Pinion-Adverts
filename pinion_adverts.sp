@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.16f <-> 2013 4/10 - Caelan Borowiec
+		Made Socket the prefered query method
+		Added some randomness to prevent players from sending closed_htmlpage manually
 	1.12.16d <-> 2013 3/26 - Caelan Borowiec
 		Changed the "you must wait" message to only display when a delay has been loaded from the backend.
 	1.12.16c <-> 2013 3/25 - Caelan Borowiec
@@ -186,7 +189,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16d"
+#define PLUGIN_VERSION "1.12.16f"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -267,6 +270,8 @@ new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player lea
 #define SECONDS_IN_MINUTE 60
 #define GetReViewTime() (GetConVarInt(g_ConVarReViewTime) * SECONDS_IN_MINUTE)
 
+new String:g_sPageCloseCommand[32] = "closed_htmlpage";
+
 #define CURL_DEFAULT_OPT(%1) curl_easy_setopt_int_array(%1, CURL_Default_opt, sizeof(CURL_Default_opt))
 
 #define CURL_AVAILABLE()		(GetFeatureStatus(FeatureType_Native, "curl_easy_init") == FeatureStatus_Available)
@@ -331,10 +336,10 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 // Configure Environment
 public OnPluginStart()
 {
-	if (CURL_AVAILABLE())	// cURL or cURL and Sockets installed
-		LogMessage("The cURL extension has been detected and will be used for queries.");
-	else if (SOCKET_AVAILABLE())	// Socket, but no cURL
+	if (SOCKET_AVAILABLE())	// Socket or Socket + cURL installed -> use Socket
 		LogMessage("The Socket extension has been detected and will be used for queries.");
+	else if (CURL_AVAILABLE())	// No Socket, but cURL -> use cURL
+		LogMessage("The cURL extension has been detected and will be used for queries.");
 	else if (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D)
 		SetFailState("This plugin requires ether the Socket or the cURL extension to be installed.");
 
@@ -344,9 +349,14 @@ public OnPluginStart()
 		SetFailState("Failed to find VGUIMenu usermessage");
 	
 	HookUserMessage(VGUIMenu, OnMsgVGUIMenu, true);
-
+	
+	new num = GetRandomInt(10000, 99999);
+	Format(g_sPageCloseCommand, sizeof(g_sPageCloseCommand), "%s_rand_%i", g_sPageCloseCommand, num);
 	// Hook the MOTD OK button
-	AddCommandListener(PageClosed, "closed_htmlpage");
+	#if defined SHOW_CONSOLE_MESSAGES
+	LogMessage("Listening for page-close indicator command: %s", g_sPageCloseCommand);
+	#endif
+	AddCommandListener(PageClosed, g_sPageCloseCommand);
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
@@ -752,7 +762,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	}
 	else
 	{
-		KvSetString(kv, "cmd", "closed_htmlpage");
+		KvSetString(kv, "cmd", g_sPageCloseCommand);
 	}
 
 	if (GetState(client) != kViewingAd)
