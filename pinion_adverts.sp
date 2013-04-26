@@ -21,6 +21,15 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.16i <-> 2013 4/25 - Caelan Borowiec
+		Bumped default timeout to 43 seconds
+		Fixed issue with the plugin loading a blank popup
+	1.12.16h <-> 2013 4/22 - Caelan Borowiec
+		Fixed a null termination issue in EasyHTTP.inc
+		Made EasyHTTP.inc prefer SteamTools
+	1.12.16g <-> 2013 4/16 - Caelan Borowiec
+		Replaced cURL/Socket code with a wrapper for EasyHTTP.inc
+		Plugin now requires EasyHTTP.inc to compile
 	1.12.16f <-> 2013 4/10 - Caelan Borowiec
 		Made Socket the prefered query method
 		Added some randomness to prevent players from sending closed_htmlpage manually
@@ -153,20 +162,18 @@ Changelog
 
 #include <sourcemod>
 #include <sdktools>
-#undef REQUIRE_EXTENSIONS
-#include <cURL>
-#include <socket>
 #undef REQUIRE_PLUGIN
 #tryinclude <updater>
-
-
+#define REQUIRE_PLUGIN
+#define STRING(%1) %1, sizeof(%1)
+#include <EasyHTTP>
 
 #pragma semicolon 1
 
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
 
-//#define SHOW_CONSOLE_MESSAGES
+#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -189,7 +196,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16f"
+#define PLUGIN_VERSION "1.12.16i"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -246,7 +253,6 @@ new Handle:g_ConVarImmunityEnabled;
 new Handle:g_ConVarTF2EventOption;
 
 // Globals required/used by dynamic delay code
-new g_iCurrentIteration[MAXPLAYERS +1];
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
 new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
 new bool:g_iIsMapActive = false;
@@ -271,20 +277,6 @@ new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player lea
 #define GetReViewTime() (GetConVarInt(g_ConVarReViewTime) * SECONDS_IN_MINUTE)
 
 new String:g_sPageCloseCommand[32] = "closed_htmlpage";
-
-#define CURL_DEFAULT_OPT(%1) curl_easy_setopt_int_array(%1, CURL_Default_opt, sizeof(CURL_Default_opt))
-
-#define CURL_AVAILABLE()		(GetFeatureStatus(FeatureType_Native, "curl_easy_init") == FeatureStatus_Available)
-#define SOCKET_AVAILABLE()		(GetFeatureStatus(FeatureType_Native, "SocketCreate") == FeatureStatus_Available)
-
-
-new CURL_Default_opt[][2] = {
-	{_:CURLOPT_NOSIGNAL,1},
-	{_:CURLOPT_NOPROGRESS,1},
-	{_:CURLOPT_TIMEOUT,30},
-	{_:CURLOPT_CONNECTTIMEOUT,60},
-	{_:CURLOPT_VERBOSE,0}
-};
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
@@ -311,24 +303,105 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	// Backwards compatibility pre csgo/sm1.5
 	MarkNativeAsOptional("GetUserMessageType");
 	
+	// Mark Socket natives as optional
+	MarkNativeAsOptional("SocketIsConnected");
+	MarkNativeAsOptional("SocketCreate");
+	MarkNativeAsOptional("SocketBind");
+	MarkNativeAsOptional("SocketConnect");
+	MarkNativeAsOptional("SocketDisconnect");
+	MarkNativeAsOptional("SocketListen");
+	MarkNativeAsOptional("SocketSend");
+	MarkNativeAsOptional("SocketSendTo");
+	MarkNativeAsOptional("SocketSetOption");
+	MarkNativeAsOptional("SocketSetReceiveCallback");
+	MarkNativeAsOptional("SocketSetSendqueueEmptyCallback");
+	MarkNativeAsOptional("SocketSetDisconnectCallback");
+	MarkNativeAsOptional("SocketSetErrorCallback");
+	MarkNativeAsOptional("SocketSetArg");
+	MarkNativeAsOptional("SocketGetHostName");
+
+	// Mark SteamTools natives as optional
+	MarkNativeAsOptional("Steam_IsVACEnabled");
+	MarkNativeAsOptional("Steam_GetPublicIP");
+	MarkNativeAsOptional("Steam_RequestGroupStatus");
+	MarkNativeAsOptional("Steam_RequestGameplayStats");
+	MarkNativeAsOptional("Steam_RequestServerReputation");
+	MarkNativeAsOptional("Steam_IsConnected");
+	MarkNativeAsOptional("Steam_SetRule");
+	MarkNativeAsOptional("Steam_ClearRules");
+	MarkNativeAsOptional("Steam_ForceHeartbeat");
+	MarkNativeAsOptional("Steam_AddMasterServer");
+	MarkNativeAsOptional("Steam_RemoveMasterServer");
+	MarkNativeAsOptional("Steam_GetNumMasterServers");
+	MarkNativeAsOptional("Steam_GetMasterServerAddress");
+	MarkNativeAsOptional("Steam_SetGameDescription");
+	MarkNativeAsOptional("Steam_RequestStats");
+	MarkNativeAsOptional("Steam_GetStat");
+	MarkNativeAsOptional("Steam_GetStatFloat");
+	MarkNativeAsOptional("Steam_IsAchieved");
+	MarkNativeAsOptional("Steam_GetNumClientSubscriptions");
+	MarkNativeAsOptional("Steam_GetClientSubscription");
+	MarkNativeAsOptional("Steam_GetNumClientDLCs");
+	MarkNativeAsOptional("Steam_GetClientDLC");
+	MarkNativeAsOptional("Steam_GetCSteamIDForClient");
+	MarkNativeAsOptional("Steam_SetCustomSteamID");
+	MarkNativeAsOptional("Steam_GetCustomSteamID");
+	MarkNativeAsOptional("Steam_RenderedIDToCSteamID");
+	MarkNativeAsOptional("Steam_CSteamIDToRenderedID");
+	MarkNativeAsOptional("Steam_GroupIDToCSteamID");
+	MarkNativeAsOptional("Steam_CSteamIDToGroupID");
+	MarkNativeAsOptional("Steam_CreateHTTPRequest");
+	MarkNativeAsOptional("Steam_SetHTTPRequestNetworkActivityTimeout");
+	MarkNativeAsOptional("Steam_SetHTTPRequestHeaderValue");
+	MarkNativeAsOptional("Steam_SetHTTPRequestGetOrPostParameter");
+	MarkNativeAsOptional("Steam_SendHTTPRequest");
+	MarkNativeAsOptional("Steam_DeferHTTPRequest");
+	MarkNativeAsOptional("Steam_PrioritizeHTTPRequest");
+	MarkNativeAsOptional("Steam_GetHTTPResponseHeaderSize");
+	MarkNativeAsOptional("Steam_GetHTTPResponseHeaderValue");
+	MarkNativeAsOptional("Steam_GetHTTPResponseBodySize");
+	MarkNativeAsOptional("Steam_GetHTTPResponseBodyData");
+	MarkNativeAsOptional("Steam_WriteHTTPResponseBody");
+	MarkNativeAsOptional("Steam_ReleaseHTTPRequest");
+	MarkNativeAsOptional("Steam_GetHTTPDownloadProgressPercent");
+
 	// Mark cURL natives as optional
+	MarkNativeAsOptional("curl_easy_init");
+	MarkNativeAsOptional("curl_easy_setopt_string");
+	MarkNativeAsOptional("curl_easy_setopt_int");
+	MarkNativeAsOptional("curl_easy_setopt_int_array");
+	MarkNativeAsOptional("curl_easy_setopt_int64");
 	MarkNativeAsOptional("curl_OpenFile");
+	MarkNativeAsOptional("curl_httppost");
+	MarkNativeAsOptional("curl_slist");
+	MarkNativeAsOptional("curl_easy_setopt_handle");
+	MarkNativeAsOptional("curl_easy_setopt_function");
+	MarkNativeAsOptional("curl_load_opt");
+	MarkNativeAsOptional("curl_easy_perform");
+	MarkNativeAsOptional("curl_easy_perform_thread");
+	MarkNativeAsOptional("curl_easy_send_recv");
+	MarkNativeAsOptional("curl_send_recv_Signal");
+	MarkNativeAsOptional("curl_send_recv_IsWaiting");
+	MarkNativeAsOptional("curl_set_send_buffer");
+	MarkNativeAsOptional("curl_set_receive_size");
+	MarkNativeAsOptional("curl_set_send_timeout");
+	MarkNativeAsOptional("curl_set_recv_timeout");
+	MarkNativeAsOptional("curl_get_error_buffer");
+	MarkNativeAsOptional("curl_easy_getinfo_string");
+	MarkNativeAsOptional("curl_easy_getinfo_int");
+	MarkNativeAsOptional("curl_easy_escape");
+	MarkNativeAsOptional("curl_easy_unescape");
+	MarkNativeAsOptional("curl_easy_strerror");
+	MarkNativeAsOptional("curl_version");
+	MarkNativeAsOptional("curl_protocols");
+	MarkNativeAsOptional("curl_features");
+	MarkNativeAsOptional("curl_OpenFile");
+	MarkNativeAsOptional("curl_httppost");
+	MarkNativeAsOptional("curl_formadd");
 	MarkNativeAsOptional("curl_slist");
 	MarkNativeAsOptional("curl_slist_append");
-	MarkNativeAsOptional("curl_easy_init");
-	MarkNativeAsOptional("curl_easy_setopt_function");
-	MarkNativeAsOptional("curl_easy_setopt_int_array");
-	MarkNativeAsOptional("curl_easy_setopt_handle");
-	MarkNativeAsOptional("curl_easy_setopt_string");
-	MarkNativeAsOptional("curl_easy_perform_thread");
-	MarkNativeAsOptional("curl_easy_strerror");
-	
-	// Mark Socket natives as optional
-	MarkNativeAsOptional("SocketCreate");
-	MarkNativeAsOptional("SocketSetArg");
-	MarkNativeAsOptional("SocketSetOption");
-	MarkNativeAsOptional("SocketConnect");
-	MarkNativeAsOptional("SocketSend");
+	MarkNativeAsOptional("curl_hash_file");
+	MarkNativeAsOptional("curl_hash_string");
 	
 	return APLRes_Success;
 }
@@ -336,12 +409,12 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 // Configure Environment
 public OnPluginStart()
 {
-	if (SOCKET_AVAILABLE())	// Socket or Socket + cURL installed -> use Socket
-		LogMessage("The Socket extension has been detected and will be used for queries.");
-	else if (CURL_AVAILABLE())	// No Socket, but cURL -> use cURL
-		LogMessage("The cURL extension has been detected and will be used for queries.");
-	else if (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D)
-		SetFailState("This plugin requires ether the Socket or the cURL extension to be installed.");
+	EasyHTTPCheckExtensions();
+	if(!g_bCURL && !g_bSockets && ! g_bSteamTools)
+		SetFailState("For this plugin to run you need ONE of these extensions installed:\n\
+			cURL - http://forums.alliedmods.net/showthread.php?t=152216\n\
+			SteamTools - http://forums.alliedmods.net/showthread.php?t=129763\n\
+			Socket - http://forums.alliedmods.net/showthread.php?t=67640");
 
 	// Catch the MOTD
 	new UserMsg:VGUIMenu = GetUserMessageId("VGUIMenu");
@@ -360,8 +433,6 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	//g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (Min: 15 sec, Max: 30 sec, 0 = Disables).", 0, true, 0.0, true, 30.0);
-	//g_ConVarMaxCooldown = CreateConVar("sm_motdredirect_max_forced_duration", "-1", "The maximum amount of time the MOTD will be forced to remain open (Min: 15 sec. Max: 30 sec. 0 = no forced waiting).", 0, true, 0.0, true, 30.0);
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
@@ -460,7 +531,6 @@ public OnAllPluginsLoaded()
 				new String:sDataEscape[128];
 				strcopy(sDataEscape, sizeof(sDataEscape), sData);
 				ReplaceString(sDataEscape, sizeof(sDataEscape), " ", "+");
-				//WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sDataEscape);
 				WriteFileLine(hMOTD, "Pinion cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 			}
 			CloseHandle(hMOTD);
@@ -773,20 +843,9 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
 		if ((timeleft > 120 || timeleft < 0) && g_iIsMapActive && bUseCooldown)
 		{
-			if (GetFeatureStatus(FeatureType_Native, "curl_easy_init") == FeatureStatus_Available)
-			{
-				g_iNumQueryAttempts[client] = 1;
-				g_iDynamicDisplayTime[client] = 0;
-				GetClientAdvertDelayCURL(client);
-			}
-			else if (GetFeatureStatus(FeatureType_Native, "SocketCreate") == FeatureStatus_Available)
-			{
-				GetClientAdvertDelaySocket(client);
-			}
-			else
-			{
-				SetFailState("cURL or Socket must be running for this plugin to function. Please load one of these extensions and reload this plugin.");
-			}
+			g_iNumQueryAttempts[client] = 1;
+			g_iDynamicDisplayTime[client] = 0;
+			GetClientAdvertDelayEasyHTTP(client);
 		}
 		
 		decl String:szAuth[MAX_AUTH_LENGTH];
@@ -835,15 +894,15 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
 	
+	if (!client)
+		return;
+	
 	if (GetState(client) == kAdClosing || GetState(client) == kViewingAd)	//Ad is loaded
 	{
-		new trigger = ReadPackCell(pack);
-		
-		if (!client)
-			return;
-		ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-		if (trigger != _:AD_TRIGGER_CONNECT)
-			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		if (GetClientTeam(client) != 0) // player has joined a team
+			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		else // Player still needs the menu open
+			ShowMOTDPanelEx(client, MOTD_TITLE, "http://Pinion.gg", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 	}
 }
 
@@ -933,7 +992,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	
 	new Float:flStartTime = ReadPackFloat(data);
 	
-	new iCooldown = 35; // Default cooldown
+	new iCooldown = 43; // Default cooldown
 	
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
@@ -996,8 +1055,14 @@ stock bool:BGameUsesVGUIEnum()
 }
 
 
-// Dynamic Durations via cURL
-GetClientAdvertDelayCURL(client)
+public Action:QueryAgain(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	g_iNumQueryAttempts[client]++;
+	GetClientAdvertDelayEasyHTTP(client);
+}
+
+GetClientAdvertDelayEasyHTTP(client)
 {
 	if (client == 0)
 		return;
@@ -1009,65 +1074,50 @@ GetClientAdvertDelayCURL(client)
 	StrCat(sQueryURL, sizeof(sQueryURL), SteamID);
 	
 	#if defined SHOW_CONSOLE_MESSAGES
-	PrintToConsole(client, "\n\nQuerying url via cURL: %s", sQueryURL);
+	PrintToConsole(client, "\n\nQuerying URL: %s", sQueryURL);
 	#endif
 	
-	new Handle:hcURL = curl_easy_init(); // Create a cURL handle
-	if (hcURL != INVALID_HANDLE)
+	// Request a customized ad for the client
+	if(!EasyHTTP(sQueryURL, Helper_GetAdStatus_Complete, GetClientUserId(client)))
 	{
-		CURL_DEFAULT_OPT(hcURL);
-		curl_easy_setopt_function(hcURL, CURLOPT_WRITEFUNCTION, WriteFunction, GetClientSerial(client));
-		curl_easy_setopt_string(hcURL, CURLOPT_URL, sQueryURL);
-		
-		curl_easy_perform_thread(hcURL, onCURLComplete, GetClientSerial(client));
-	}
-	else
-	{
-		LogError("Unable to create cURL handle!");
-	}
-}
-
-
-public onCURLComplete(Handle:hndl, CURLcode:code, any:serial)
-{
-	new client = GetClientFromSerial(serial);
-	if (client == 0)
-	{
-		CloseHandle(hndl);
-		return;	
-	}
-	
-	if (hndl != INVALID_HANDLE && code != CURLE_OK)
-	{
-		new String:error_buffer[256];
-		curl_easy_strerror(code, error_buffer, sizeof(error_buffer));
-		LogError("cURL Query Failed - %s", error_buffer);
-		CloseHandle(hndl);
+		LogError("EasyHTTP request failed.");
 		return;
 	}
-	CloseHandle(hndl);
 }
 
-public WriteFunction(Handle:hndl, const String:buffer[], const bytes, const nmemb, any:serial)
+public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:success)
 {
-	new client = GetClientFromSerial(serial);
-	
-	if (client == 0)
-		return bytes * nmemb;
-	
-	new String:sQueryData[((bytes * nmemb)+1)];
-	strcopy(sQueryData, ((bytes * nmemb)+1), buffer);
-	TrimString(sQueryData);
+	// Make sure our client is still ingame
+	new client = GetClientOfUserId(userid);
+	if(!client || !IsClientInGame(client))
+		return;
+		
+	// Check if the request failed for whatever reason
+	if(!success)
+	{
+		LogError("EasyHTTP request failed. Request reported failure.");
+		return;
+	}
 	
 	#if defined SHOW_CONSOLE_MESSAGES
-	PrintToConsole(client, "Query returned '%s'", sQueryData);
+	PrintToConsole(client, "Query #%i returned '%s'", g_iNumQueryAttempts[client], sQueryData);
 	#endif
+	
 	if (!StrEqual(sQueryData, ""))
 	{
 		new queryResult = StringToInt(sQueryData);
+
 		if (queryResult == 0)
 		{
-			CreateTimer(QUERY_DELAY, QueryAgainCURL, serial, TIMER_FLAG_NO_MAPCHANGE);
+			if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+			{
+				#if defined SHOW_CONSOLE_MESSAGES
+				PrintToConsole(client, "Query failed: StringToInt returned 0.  Giving up after %i attempts.", g_iNumQueryAttempts[client]);
+				#endif
+				g_iNumQueryAttempts[client] = 1;
+			}
+			else
+				CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
 		else
 		{
@@ -1078,185 +1128,4 @@ public WriteFunction(Handle:hndl, const String:buffer[], const bytes, const nmem
 			g_iDynamicDisplayTime[client] = queryResult;
 		}
 	}
-	return bytes * nmemb;
-}
-
-public Action:QueryAgainCURL(Handle:timer, any:serial)
-{
-	new client = GetClientFromSerial(serial);
-	if (client == 0)
-		return;
-	
-	if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
-	{
-		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Query failed: StringToInt returned 0.  Giving up after %i attempts.", g_iNumQueryAttempts[client]);
-		#endif
-		g_iNumQueryAttempts[client] = 1;
-	}
-	else
-	{
-		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Query #%i failed: StringToInt returned 0.  Attempting query again.", g_iNumQueryAttempts[client]);
-		#endif
-		
-		g_iNumQueryAttempts[client] ++;
-		GetClientAdvertDelayCURL(client);
-	}
-}
-
-// Dynamic Durations via Socket
-GetClientAdvertDelaySocket(client)
-{
-	g_iNumQueryAttempts[client] = 1;
-	g_iCurrentIteration[client] = 1;
-	g_iDynamicDisplayTime[client] = 0;
-	
-	new String:Domain[] = "adback.pinion.gg";
-	new String:sQueryURL[] = "duration/";
-	
-	//Create the pack and fill it with data
-	new Handle:hPack = CreateDataPack();
-	WritePackString(hPack, sQueryURL); //Remote File
-	WritePackString(hPack, Domain); //Domain
-	WritePackCell(hPack, GetClientSerial(client));
-
-	//Create a socket connection and pass the pack handle
-	new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
-	SocketSetArg(socket, hPack);
-	SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, Domain, 80);
-}
-
-public OnSocketConnected(Handle:socket, any:hPack)
-{
-	new String:DownloadFrom[512], String:Domain[512], String:SteamID[32];
-	
-	ResetPack(hPack);
-	ReadPackString(hPack, DownloadFrom, sizeof(DownloadFrom)); //Remote path
-	ReadPackString(hPack, Domain, sizeof(Domain)); //Remote
-	
-	new client = GetClientFromSerial(ReadPackCell(hPack));
-	if (client == 0)
-		return;
-	
-	GetClientAuthString(client, SteamID, sizeof(SteamID));
-	
-	
-	new String:buffer[1024];
-	Format(buffer, sizeof(buffer), "GET /%s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", DownloadFrom, SteamID, Domain);
-	#if defined SHOW_CONSOLE_MESSAGES
-	PrintToConsole(client, "\n\nQuerying url via Socket: %s/%s%s", Domain, DownloadFrom, SteamID);
-	#endif
-	SocketSend(socket, buffer);
-}
-
-public OnSocketReceive(Handle:socket, String:receiveData[], const dataSize, any:hPack)
-{
-	new String:DownloadFrom[512], String:Domain[512];
-	
-	ResetPack(hPack);
-	ReadPackString(hPack, DownloadFrom, sizeof(DownloadFrom)); //Remote path
-	ReadPackString(hPack, Domain, sizeof(Domain)); //Remote domain
-	new client = GetClientFromSerial(ReadPackCell(hPack));
-	if (client == 0)
-		return;
-
-	new pos = 0;
-	if (g_iCurrentIteration[client] == 1)
-	{
-		pos = 4;
-		while (!(receiveData[pos-4] == '\r' && receiveData[pos-3] == '\n' && receiveData[pos-2] == '\r' && receiveData[pos-1] == '\n'))
-			pos++;
-
-		new String:szHeader[pos-4];
-		strcopy(szHeader, pos-4, receiveData);
-		new lenPos = StrContains(szHeader, "Content-Length: ", false);
-		if (lenPos != -1)
-		{
-			lenPos += 16;
-			new String:szContentLength[32];
-			new x = 0;
-			while (szHeader[lenPos] != '\r' && szHeader[lenPos+1] != '\n')
-				szContentLength[x++] = szHeader[lenPos++];
-			
-			szContentLength[x] = '\0';
-		}
-	}
-
-	new String:sData[4096];
-	strcopy(sData, sizeof(sData), receiveData[pos]);
-	TrimString(sData);
-	
-	#if defined SHOW_CONSOLE_MESSAGES
-	PrintToConsole(client, "Query returned '%s'", sData);
-	#endif
-	if (!StrEqual(sData, ""))
-	{
-		new queryResult = StringToInt(sData);
-		if (queryResult == 0)
-		{
-			new Handle:pack = CloneHandle(hPack);
-			CreateTimer(QUERY_DELAY, QueryAgainSocket, pack, TIMER_FLAG_NO_MAPCHANGE);
-		}
-		else
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Query finished, StringToInt returned %i", queryResult);
-			#endif
-			//Update the delay timer
-			g_iDynamicDisplayTime[client] = queryResult;
-		}
-	}
-	
-	g_iCurrentIteration[client]++;
-}
-
-// QueryAgainSocket decides if a query should be reattempted and creates the query if yes
-public Action:QueryAgainSocket(Handle:timer, Handle:hPack)
-{
-	new String:Domain[512];
-	ResetPack(hPack);
-	ReadPackString(hPack, Domain, sizeof(Domain));
-	ReadPackString(hPack, Domain, sizeof(Domain));
-	new client = GetClientFromSerial(ReadPackCell(hPack));
-	if (client == 0)
-	{
-		CloseHandle(hPack);
-		return;
-	}
-	
-	if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
-	{
-		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Query failed: StringToInt returned 0.  Giving up after %i attempts.", g_iNumQueryAttempts[client]);
-		#endif
-		CloseHandle(hPack);
-		g_iNumQueryAttempts[client] = 1;
-	}
-	else
-	{
-		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Query #%i failed: StringToInt returned 0.  Attempting query again.", g_iNumQueryAttempts[client]);
-		#endif
-		g_iNumQueryAttempts[client] ++;
-		
-		//Create a socket connection and pass the pack handle
-		g_iCurrentIteration[client] = 1;
-		new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
-		SocketSetArg(socket, hPack);
-		SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, Domain, 80);
-	}
-}
-
-public OnSocketError(Handle:socket, const errorType, const errorNum, any:hPack)
-{
-	LogError("Something went wrong querying the backend.  Socket error %d [errno %d]", errorType, errorNum);
-	CloseHandle(hPack);
-	CloseHandle(socket);
-}
-
-public OnSocketDisconnected(Handle:socket, any:hPack)
-{
-	CloseHandle(hPack);
-	CloseHandle(socket);
 }
