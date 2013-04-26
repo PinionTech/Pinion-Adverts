@@ -410,7 +410,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 public OnPluginStart()
 {
 	EasyHTTPCheckExtensions();
-	if(!g_bCURL && !g_bSockets && ! g_bSteamTools)
+	if(!g_bCURL && !g_bSockets && ! g_bSteamTools && g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D)
 		SetFailState("For this plugin to run you need ONE of these extensions installed:\n\
 			cURL - http://forums.alliedmods.net/showthread.php?t=152216\n\
 			SteamTools - http://forums.alliedmods.net/showthread.php?t=129763\n\
