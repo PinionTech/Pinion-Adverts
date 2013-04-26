@@ -39,7 +39,28 @@ stock bool:EasyHTTP(const String:url[], Function:complete=INVALID_FUNCTION, any:
 		Format(STRING(g_szInterfaceIP), "%d.%d.%d.%d", m_iServerIP >>> 24 & 255, m_iServerIP >>> 16 & 255, m_iServerIP >>> 8 & 255, m_iServerIP & 255);
 	}
 
-	if(g_bCURL)
+	if(g_bSteamTools)
+	{
+		new Handle:m_hData = CreateDataPack();
+		WritePackCell(m_hData, _:complete);
+		WritePackCell(m_hData, data);
+		WritePackString(m_hData, path);
+		ResetPack(m_hData);
+
+		new m_iLength = strlen(url)+8;
+		decl String:m_szURL[m_iLength];
+		if(StrContains(url, "http://")==-1)
+		{
+			strcopy(m_szURL, m_iLength, "http://");
+			strcopy(m_szURL[7], m_iLength-7, url);
+		}
+		else
+			strcopy(m_szURL, m_iLength, url);
+
+		new HTTPRequestHandle:m_hRequest = Steam_CreateHTTPRequest(HTTPMethod_GET, m_szURL);
+		Steam_SendHTTPRequest(m_hRequest, EasyHTTP_SteamToolsComplete, m_hData);
+		return true;
+	} else if (g_bCURL)
 	{
 		new Handle:m_hCurl = curl_easy_init();
 		if(m_hCurl != INVALID_HANDLE)
@@ -93,27 +114,6 @@ stock bool:EasyHTTP(const String:url[], Function:complete=INVALID_FUNCTION, any:
 	
 			return true;
 		}
-	} else if(g_bSteamTools)
-	{
-		new Handle:m_hData = CreateDataPack();
-		WritePackCell(m_hData, _:complete);
-		WritePackCell(m_hData, data);
-		WritePackString(m_hData, path);
-		ResetPack(m_hData);
-
-		new m_iLength = strlen(url)+8;
-		decl String:m_szURL[m_iLength];
-		if(StrContains(url, "http://")==-1)
-		{
-			strcopy(m_szURL, m_iLength, "http://");
-			strcopy(m_szURL[7], m_iLength-7, url);
-		}
-		else
-			strcopy(m_szURL, m_iLength, url);
-
-		new HTTPRequestHandle:m_hRequest = Steam_CreateHTTPRequest(HTTPMethod_GET, m_szURL);
-		Steam_SendHTTPRequest(m_hRequest, EasyHTTP_SteamToolsComplete, m_hData);
-		return true;
 	} else if(g_bSockets)
 	{
 		new Handle:m_hData = CreateDataPack();
@@ -312,11 +312,11 @@ public EasyHTTP_SteamToolsComplete(HTTPRequestHandle:request, bool:successful, H
 	if(m_szPath[0] == 0)
 		m_iLength = Steam_GetHTTPResponseBodySize(request);
 
-	decl String:m_szBuffer[m_iLength+1];
+	decl String:m_szBuffer[m_iLength+2];
 		
 	if(m_szPath[0] == 0)
 	{
-		Steam_GetHTTPResponseBodyData(request, m_szBuffer, m_iLength);
+		Steam_GetHTTPResponseBodyData(request, m_szBuffer, m_iLength+1);
 	}
 	else
 		Steam_WriteHTTPResponseBody(request, m_szPath);
