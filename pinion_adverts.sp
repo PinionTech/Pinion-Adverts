@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.17 <-> 2013 5/12 - Caelan Borowiec
+		Fixed the motd remaining loaded after the panel is closed.
 	1.12.16 <-> 2013 4/25 - Caelan Borowiec
 		Fixed an issue with the plugin loading a blank motd window
 		Made SteamTools the prefered extension for queries
@@ -262,8 +264,6 @@ new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player lea
 #define SECONDS_IN_MINUTE 60
 #define GetReViewTime() (GetConVarInt(g_ConVarReViewTime) * SECONDS_IN_MINUTE)
 
-new String:g_sPageCloseCommand[32] = "closed_htmlpage";
-
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
 	// Game Detection
@@ -408,14 +408,7 @@ public OnPluginStart()
 		SetFailState("Failed to find VGUIMenu usermessage");
 	
 	HookUserMessage(VGUIMenu, OnMsgVGUIMenu, true);
-	
-	new num = GetRandomInt(10000, 99999);
-	Format(g_sPageCloseCommand, sizeof(g_sPageCloseCommand), "%s_rand_%i", g_sPageCloseCommand, num);
-	// Hook the MOTD OK button
-	#if defined SHOW_CONSOLE_MESSAGES
-	LogMessage("Listening for page-close indicator command: %s", g_sPageCloseCommand);
-	#endif
-	AddCommandListener(PageClosed, g_sPageCloseCommand);
+	AddCommandListener(PageClosed, "closed_htmlpage");
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
@@ -584,6 +577,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
 			#endif
+			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 			FakeClientCommand(client, "joingame");
 			#if defined SHOW_CONSOLE_MESSAGES
@@ -595,6 +589,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
 			#endif
+			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "javascript:windowClosed() sent to client.");
@@ -818,7 +813,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	}
 	else
 	{
-		KvSetString(kv, "cmd", g_sPageCloseCommand);
+		KvSetString(kv, "cmd", "closed_htmlpage");
 	}
 
 	if (GetState(client) != kViewingAd)
