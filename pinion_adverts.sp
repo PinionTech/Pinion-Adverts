@@ -21,32 +21,18 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	1.12.16i <-> 2013 4/25 - Caelan Borowiec
-		Bumped default timeout to 43 seconds
-		Fixed issue with the plugin loading a blank popup
-	1.12.16h <-> 2013 4/22 - Caelan Borowiec
-		Fixed a null termination issue in EasyHTTP.inc
-		Made EasyHTTP.inc prefer SteamTools
-	1.12.16g <-> 2013 4/16 - Caelan Borowiec
+	1.12.16 <-> 2013 4/25 - Caelan Borowiec
+		Fixed an issue with the plugin loading a blank motd window
+		Made SteamTools the prefered extension for queries
 		Replaced cURL/Socket code with a wrapper for EasyHTTP.inc
-		Plugin now requires EasyHTTP.inc to compile
-	1.12.16f <-> 2013 4/10 - Caelan Borowiec
-		Made Socket the prefered query method
-		Added some randomness to prevent players from sending closed_htmlpage manually
-	1.12.16d <-> 2013 3/26 - Caelan Borowiec
+			- (Plugin now requires EasyHTTP.inc to compile)
+		Added a countermeasure to prevent players from blocking the closed_htmlpage command
 		Changed the "you must wait" message to only display when a delay has been loaded from the backend.
-	1.12.16c <-> 2013 3/25 - Caelan Borowiec
 		Removed bounds on the page-delay timer
+		Changed the default wait time to a hard-coded 43 seconds
+		Removed hard-coded 3 second addition to the delay
 		Plugin will not run queries on games where dynamic page-delay durations are not supported
 		Plugin no longer requires cURL/Socket to be installed on games where dynamic page-delay durations are not supported
-		Pruned unused code
-	1.12.16b <-> 2013 3/24 - Caelan Borowiec
-		Removed hard-coded 3 second addition to the delay
-		Changed the max wait time to a hard-coded 35 sec
-		Change the "you must wait" message to only show if the time left is 30 seconds or less
-	1.12.16 <-> 2013 3/24 - Caelan Borowiec
-		Added support for using cURL dynamic duration queries
-		Made cURL prefered query method
 	1.12.15 <-> 2013 2/6 - Caelan Borowiec
 		Added dynamic minimum durations
 		Added countermeasure to deal with players bypassing the motd window
@@ -196,7 +182,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16i"
+#define PLUGIN_VERSION "1.12.16"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
