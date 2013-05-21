@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.17c <-> 2013 5/20 - Caelan Borowiec
+		Fixed an issue that could happen if the plugin received no data from a query
+		Improved some debug messages
 	1.12.17b <-> 2013 5/20 - Caelan Borowiec
 		Changed the backend interface to expect data in JSON
 	1.12.17 <-> 2013 5/12 - Caelan Borowiec
@@ -187,7 +190,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.17b"
+#define PLUGIN_VERSION "1.12.17c"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -1064,7 +1067,10 @@ GetClientAdvertDelayEasyHTTP(client)
 	// Request a customized ad delay for the client
 	if(!EasyHTTP(sQueryURL, Helper_GetAdStatus_Complete, GetClientUserId(client)))
 	{
-		LogError("EasyHTTP request failed.");
+		LogError("Sending EasyHTTP request failed.");
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Sending EasyHTTP request failed.");
+		#endif
 		return;
 	}
 }
@@ -1079,7 +1085,10 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 	// Check if the request failed for whatever reason
 	if(!success)
 	{
-		LogError("EasyHTTP request failed. Request reported failure.");
+		LogError("Request failed. EasyHTTP reported failure.");
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Request failed. EasyHTTP reported failure.");
+		#endif
 		return;
 	}
 	
@@ -1115,5 +1124,12 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 			
 			CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
+	}
+	else
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Backend returned no data: Retrying...", sQueryData);
+		#endif
+		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 	}
 }
