@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.17b <-> 2013 5/20 - Caelan Borowiec
+		Changed the backend interface to expect data in JSON
 	1.12.17 <-> 2013 5/12 - Caelan Borowiec
 		Fixed the motd remaining loaded after the panel is closed.
 	1.12.16 <-> 2013 4/25 - Caelan Borowiec
@@ -155,6 +157,7 @@ Changelog
 #define REQUIRE_PLUGIN
 #define STRING(%1) %1, sizeof(%1)
 #include <EasyHTTP>
+#include <json>
 
 #pragma semicolon 1
 
@@ -184,7 +187,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16"
+#define PLUGIN_VERSION "1.12.17b"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -1048,7 +1051,7 @@ GetClientAdvertDelayEasyHTTP(client)
 	if (client == 0)
 		return;
 	
-	new String:sQueryURL[84] = "http://adback.pinion.gg/duration/";
+	new String:sQueryURL[84] = "http://adback.pinion.gg/v2/duration/";
 	new String:SteamID[32];
 	GetClientAuthString(client, SteamID, sizeof(SteamID));
 	
@@ -1058,7 +1061,7 @@ GetClientAdvertDelayEasyHTTP(client)
 	PrintToConsole(client, "\n\nQuerying URL: %s", sQueryURL);
 	#endif
 	
-	// Request a customized ad for the client
+	// Request a customized ad delay for the client
 	if(!EasyHTTP(sQueryURL, Helper_GetAdStatus_Complete, GetClientUserId(client)))
 	{
 		LogError("EasyHTTP request failed.");
@@ -1086,27 +1089,31 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 	
 	if (!StrEqual(sQueryData, ""))
 	{
-		new queryResult = StringToInt(sQueryData);
-
-		if (queryResult == 0)
-		{
-			if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
-			{
-				#if defined SHOW_CONSOLE_MESSAGES
-				PrintToConsole(client, "Query failed: StringToInt returned 0.  Giving up after %i attempts.", g_iNumQueryAttempts[client]);
-				#endif
-				g_iNumQueryAttempts[client] = 1;
-			}
-			else
-				CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
-		}
-		else
+		new JSON:hJson = json_decode(sQueryData); 
+		new queryResult = -1;
+		
+		if (hJson != JSON_INVALID && json_get_cell(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
 		{
 			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Query finished, StringToInt returned %i", queryResult);
+			PrintToConsole(client, "Query finished, backend returned delay of %i", queryResult);
 			#endif
 			//Update the delay timer
 			g_iDynamicDisplayTime[client] = queryResult;
+		}
+		else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+		{
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Query failed: Giving up after %i attempts.", g_iNumQueryAttempts[client]);
+			#endif
+			g_iNumQueryAttempts[client] = 1;
+		}
+		else
+		{ 
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Query failed: Retrying...", sQueryData);
+			#endif
+			
+			CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
 }
