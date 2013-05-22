@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.17d <-> 2013 5/21 - Caelan Borowiec
+		Debug improvements to EasyHTTP and Helper_GetAdStatus_Complete
 	1.12.17c <-> 2013 5/20 - Caelan Borowiec
 		Fixed an issue that could happen if the plugin received no data from a query
 		Improved some debug messages
@@ -190,7 +192,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.17c"
+#define PLUGIN_VERSION "1.12.17d"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -1075,61 +1077,56 @@ GetClientAdvertDelayEasyHTTP(client)
 	}
 }
 
-public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:success)
+public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:success, error)
 {
 	// Make sure our client is still ingame
 	new client = GetClientOfUserId(userid);
 	if(!client || !IsClientInGame(client))
 		return;
 		
-	// Check if the request failed for whatever reason
-	if(!success)
-	{
-		LogError("Request failed. EasyHTTP reported failure.");
-		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Request failed. EasyHTTP reported failure.");
-		#endif
-		return;
-	}
-	
 	#if defined SHOW_CONSOLE_MESSAGES
 	PrintToConsole(client, "Query #%i returned '%s'", g_iNumQueryAttempts[client], sQueryData);
 	#endif
-	
-	if (!StrEqual(sQueryData, ""))
-	{
-		new JSON:hJson = json_decode(sQueryData); 
-		new queryResult = -1;
 		
-		if (hJson != JSON_INVALID && json_get_cell(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Query finished, backend returned delay of %i", queryResult);
-			#endif
-			//Update the delay timer
-			g_iDynamicDisplayTime[client] = queryResult;
-		}
-		else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Query failed: Giving up after %i attempts.", g_iNumQueryAttempts[client]);
-			#endif
-			g_iNumQueryAttempts[client] = 1;
-		}
-		else
-		{ 
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Query failed: Retrying...", sQueryData);
-			#endif
-			
-			CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
-		}
-	}
-	else
+	// Check if the request failed for whatever reason
+	if(!success || StrEqual(sQueryData, ""))
 	{
+		LogError("Request failed. EasyHTTP reported failure.  Error: %i", error);
 		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Backend returned no data: Retrying...", sQueryData);
+		PrintToConsole(client, "Request failed. EasyHTTP reported failure or no data was returned.  Error: %i", error);
+		PrintToConsole(client, "Retrying query...");
 		#endif
 		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+		return;
+	}
+	
+	new JSON:hJson = json_decode(sQueryData); 
+	new queryResult = -1;
+	
+	if (hJson != JSON_INVALID && json_get_cell(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query finished, backend returned delay of %i", queryResult);
+		#endif
+		//Update the delay timer
+		g_iDynamicDisplayTime[client] = queryResult;
+		return;
+	}
+	else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query failed: Giving up after %i attempts.", g_iNumQueryAttempts[client]);
+		#endif
+		g_iNumQueryAttempts[client] = 1;
+		return;
+	}
+	else
+	{ 
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query failed: Retrying...", sQueryData);
+		#endif
+		
+		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+		return;
 	}
 }
