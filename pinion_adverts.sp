@@ -21,6 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.17 <-> 2013 5/29 - Hotfix Based on 1.12.16
+		Increased polling rate
+		Changed the default wait time to a hard-coded 30 seconds
+		Disabled debug mode
 	1.12.16 <-> 2013 4/25 - Caelan Borowiec
 		Fixed an issue with the plugin loading a blank motd window
 		Made SteamTools the prefered extension for queries
@@ -159,7 +163,7 @@ Changelog
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
 
-#define SHOW_CONSOLE_MESSAGES
+//#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -182,7 +186,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.16"
+#define PLUGIN_VERSION "1.12.17"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -193,7 +197,7 @@ public Plugin:myinfo =
 };
 
 // The number of times to attempt to query adback.pinion.gg
-#define MAX_QUERY_ATTEMPTS 10
+#define MAX_QUERY_ATTEMPTS 20
 //The number of seconds to delay between failed query attempts
 #define QUERY_DELAY 3.0
 
@@ -978,7 +982,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	
 	new Float:flStartTime = ReadPackFloat(data);
 	
-	new iCooldown = 43; // Default cooldown
+	new iCooldown = 30; // Default cooldown
 	
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
