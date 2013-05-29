@@ -21,14 +21,16 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	1.12.17d <-> 2013 5/21 - Caelan Borowiec
+	1.12.18e <-> 2013 5/28 - Caelan Borowiec
+		Changed query handing to query as long as the player is in the default cooldown
+	1.12.18d <-> 2013 5/21 - Caelan Borowiec
 		Debug improvements to EasyHTTP and Helper_GetAdStatus_Complete
-	1.12.17c <-> 2013 5/20 - Caelan Borowiec
+	1.12.18c <-> 2013 5/20 - Caelan Borowiec
 		Fixed an issue that could happen if the plugin received no data from a query
 		Improved some debug messages
-	1.12.17b <-> 2013 5/20 - Caelan Borowiec
+	1.12.18b <-> 2013 5/20 - Caelan Borowiec
 		Changed the backend interface to expect data in JSON
-	1.12.17 <-> 2013 5/12 - Caelan Borowiec
+	1.12.18a <-> 2013 5/12 - Caelan Borowiec
 		Fixed the motd remaining loaded after the panel is closed.
 	1.12.16 <-> 2013 4/25 - Caelan Borowiec
 		Fixed an issue with the plugin loading a blank motd window
@@ -192,7 +194,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.17d"
+#define PLUGIN_VERSION "1.12.18e"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -206,6 +208,8 @@ public Plugin:myinfo =
 #define MAX_QUERY_ATTEMPTS 10
 //The number of seconds to delay between failed query attempts
 #define QUERY_DELAY 3.0
+// The number of seconds players will wait if the backend doesnt respond
+#define DEF_COOLDOWN 30
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
@@ -241,8 +245,6 @@ new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
 new Handle:g_ConVar_URL;
-//new Handle:g_ConVarCooldown;
-//new Handle:g_ConVarMaxCooldown;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
@@ -267,6 +269,7 @@ enum EPlayerState
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
 new Handle:g_hPlayerLastViewedAd = INVALID_HANDLE;
+new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS+1] = 0.0;
 new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player leaves the server.
 
 #define SECONDS_IN_MINUTE 60
@@ -689,6 +692,7 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	decl String:SteamID[32];
 	GetClientAuthString(client, SteamID, sizeof(SteamID));
 	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+	g_fPlayerCooldownStartedAt[client] = 0.0;
 }
 
 // Called when a player regains control of a character (after a map-stage load)
@@ -800,7 +804,6 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
 	new trigger = ReadPackCell(pack);
-	
 	CloseHandle(pack);
 	
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
@@ -829,12 +832,14 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		new timeleft;
 		GetMapTimeLeft(timeleft);
 		
+		new String:SteamID[32];
+		GetClientAuthString(client, SteamID, sizeof(SteamID));
+		g_fPlayerCooldownStartedAt[client] = GetGameTime();
+		
 		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
 		if ((timeleft > 120 || timeleft < 0) && g_iIsMapActive && bUseCooldown)
 		{
-			g_iNumQueryAttempts[client] = 1;
-			g_iDynamicDisplayTime[client] = 0;
-			GetClientAdvertDelayEasyHTTP(client);
+			CreateTimer(1.0, DelayQuery, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
 		
 		decl String:szAuth[MAX_AUTH_LENGTH];
@@ -876,6 +881,56 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		ChangeState(client, kViewingAd);
 
 	return Plugin_Stop;
+}
+
+// Delays a easy HTTP query by 1 second
+public Action:DelayQuery(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	g_iNumQueryAttempts[client] = 1;
+	g_iDynamicDisplayTime[client] = 0;
+	GetClientAdvertDelayEasyHTTP(client);
+}
+
+//Returns true if the client is waiting to close the MOTD
+public bool:IsClientInForcedCooldown(client)
+{
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "Checking forced cooldown.");
+	#endif
+	
+	
+	if (g_iDynamicDisplayTime[client] != 0)
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "The backend has already updated the value for this client");
+		#endif
+		return false; // Backend has responded
+	}
+	
+	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
+	
+	if (GetState(client) != kViewingAd || !bUseCooldown)
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Cooldown does not apply to this client");
+		#endif
+		return false;	//Cooldown does not apply to this target
+	}
+	
+	if (g_fPlayerCooldownStartedAt[client] != 0)
+	{
+		new timeleft = DEF_COOLDOWN - RoundToFloor(GetGameTime() - g_fPlayerCooldownStartedAt[client]);
+		
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Checking forced cooldown. Client is in cooldown for %i more seconds", timeleft);
+		#endif
+		
+		if (timeleft > 0)
+			return true;
+	}
+	return false;
 }
 
 public Action:ClosePage(Handle:timer, Handle:pack)
@@ -981,7 +1036,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	
 	new Float:flStartTime = ReadPackFloat(data);
 	
-	new iCooldown = 43; // Default cooldown
+	new iCooldown = DEF_COOLDOWN; // Default cooldown
 	
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
@@ -1112,7 +1167,8 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		g_iDynamicDisplayTime[client] = queryResult;
 		return;
 	}
-	else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+	//else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+	else if (!IsClientInForcedCooldown(client))
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Query failed: Giving up after %i attempts.", g_iNumQueryAttempts[client]);
