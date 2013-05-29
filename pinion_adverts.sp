@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.18f <-> 2013 5/29 - Caelan Borowiec
+		Added check to prevent more than one query thread per client
+		Added a check to prevent queries running for clients with immunity
 	1.12.18e <-> 2013 5/28 - Caelan Borowiec
 		Changed query handing to query as long as the player is in the default cooldown
 	1.12.18d <-> 2013 5/21 - Caelan Borowiec
@@ -194,7 +197,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.18e"
+#define PLUGIN_VERSION "1.12.18f"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -253,7 +256,9 @@ new Handle:g_ConVarTF2EventOption;
 // Globals required/used by dynamic delay code
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
 new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
-new bool:g_iIsMapActive = false;
+new bool:g_bIsMapActive = false;
+new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
+new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
 
 
 // Configuration
@@ -269,7 +274,6 @@ enum EPlayerState
 new EPlayerState:g_PlayerState[MAXPLAYERS+1] = {kAwaitingAd, ...};
 new bool:g_bPlayerActivated[MAXPLAYERS+1] = {false, ...};
 new Handle:g_hPlayerLastViewedAd = INVALID_HANDLE;
-new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS+1] = 0.0;
 new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player leaves the server.
 
 #define SECONDS_IN_MINUTE 60
@@ -631,12 +635,12 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 public OnMapEnd()
 {
 	g_iLastAdWave = -1;	// Reset the value so adverts aren't triggered the first round after a map load
-	g_iIsMapActive = false;
+	g_bIsMapActive = false;
 }
 
 public OnMapStart()
 {
-	g_iIsMapActive = true;
+	g_bIsMapActive = true;
 }
 
 public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
@@ -674,6 +678,7 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 
 public OnClientAuthorized(client, const String:SteamID[])
 {
+	g_bIsQueryRunning[client] = false;
 	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
 		new n;
@@ -837,8 +842,9 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		g_fPlayerCooldownStartedAt[client] = GetGameTime();
 		
 		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
-		if ((timeleft > 120 || timeleft < 0) && g_iIsMapActive && bUseCooldown)
+		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
+			g_bIsQueryRunning[client] = true;
 			CreateTimer(1.0, DelayQuery, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
 		
@@ -910,8 +916,7 @@ public bool:IsClientInForcedCooldown(client)
 	
 	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
 	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
-	
-	if (GetState(client) != kViewingAd || !bUseCooldown)
+	if (!bUseCooldown)
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Cooldown does not apply to this client");
@@ -922,13 +927,13 @@ public bool:IsClientInForcedCooldown(client)
 	if (g_fPlayerCooldownStartedAt[client] != 0)
 	{
 		new timeleft = DEF_COOLDOWN - RoundToFloor(GetGameTime() - g_fPlayerCooldownStartedAt[client]);
-		
-		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Checking forced cooldown. Client is in cooldown for %i more seconds", timeleft);
-		#endif
-		
 		if (timeleft > 0)
+		{
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Client is in cooldown for %i more seconds", timeleft);
+			#endif
 			return true;
+		}
 	}
 	return false;
 }
@@ -1165,6 +1170,7 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		#endif
 		//Update the delay timer
 		g_iDynamicDisplayTime[client] = queryResult;
+		g_bIsQueryRunning[client] = false;
 		return;
 	}
 	//else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
@@ -1174,6 +1180,7 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		PrintToConsole(client, "Query failed: Giving up after %i attempts.", g_iNumQueryAttempts[client]);
 		#endif
 		g_iNumQueryAttempts[client] = 1;
+		g_bIsQueryRunning[client] = false;
 		return;
 	}
 	else
