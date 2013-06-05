@@ -21,6 +21,9 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.18g <-> 2013 6/5 - Caelan Borowiec
+		Turned off debug messages
+		Removed "Pot of Gold" message
 	1.12.18f <-> 2013 5/29 - Caelan Borowiec
 		Added check to prevent more than one query thread per client
 		Added a check to prevent queries running for clients with immunity
@@ -174,7 +177,7 @@ Changelog
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
 
-#define SHOW_CONSOLE_MESSAGES
+//#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -1057,7 +1060,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	if (timeleft > 0)
 	{
 		if (g_iDynamicDisplayTime[client] > 0)
-			PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
+			PrintCenterText(client, "You may continue in %d seconds.", timeleft);
 		else
 			PrintCenterText(client, "Loading...");
 		ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
