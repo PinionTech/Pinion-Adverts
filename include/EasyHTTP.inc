@@ -247,6 +247,7 @@ public EasyHTTP_CurlComplete(Handle:hndl, CURLcode:code, any:data)
 			Call_PushCell(m_aData);
 			Call_PushString("");
 			Call_PushCell(false);
+			Call_PushCell(code);
 			Call_Finish();
 		}
 		return;
@@ -279,6 +280,7 @@ public EasyHTTP_CurlComplete(Handle:hndl, CURLcode:code, any:data)
 		}
 		Call_PushString(m_szBuffer);
 		Call_PushCell(true);
+		Call_PushCell(-1);
 		Call_Finish();
 	}
 	CloseHandle(m_hData);
@@ -302,6 +304,7 @@ public EasyHTTP_SteamToolsComplete(HTTPRequestHandle:request, bool:successful, H
 			Call_PushCell(m_aData);
 			Call_PushString("");
 			Call_PushCell(false);
+			Call_PushCell(code);
 			Call_Finish();
 		}
 
@@ -327,6 +330,7 @@ public EasyHTTP_SteamToolsComplete(HTTPRequestHandle:request, bool:successful, H
 		Call_PushCell(m_aData);
 		Call_PushString(m_szBuffer);
 		Call_PushCell(true);
+		Call_PushCell(-1);
 		Call_Finish();
 	}
 	Steam_ReleaseHTTPRequest(request);
@@ -443,6 +447,7 @@ public EasyHTTP_SocketDisconnected(Handle:socket, any:data)
 		}
 		Call_PushString(m_szBuffer);
 		Call_PushCell(true);
+		Call_PushCell(-1);
 		Call_Finish();
 	}
 
@@ -469,6 +474,7 @@ public EasyHTTP_SocketError(Handle:socket, const errorType, const errorNum, any:
 		Call_PushCell(m_aData);
 		Call_PushString("");
 		Call_PushCell(false);
+		Call_PushCell(errorNum);
 		Call_Finish();
 	}
 
