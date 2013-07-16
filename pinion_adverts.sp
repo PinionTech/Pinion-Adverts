@@ -199,7 +199,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.18"
+#define PLUGIN_VERSION "1.12.19"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
