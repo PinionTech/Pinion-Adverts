@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.19 <-> 2013 7/16 - David Banham
+		Stop redirecting the page to about:blank before cleanup can be done
 	1.12.18 <-> 2013 6/5 - Caelan Borowiec
 		Removed "Pot of Gold" message
 		Added check to prevent more than one query thread per client
