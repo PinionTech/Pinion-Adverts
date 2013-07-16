@@ -592,7 +592,6 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
 			#endif
-			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 			FakeClientCommand(client, "joingame");
 			#if defined SHOW_CONSOLE_MESSAGES
@@ -604,7 +603,6 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
 			#endif
-			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "javascript:windowClosed() sent to client.");
