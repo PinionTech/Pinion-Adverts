@@ -199,7 +199,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.19 h2"
+#define PLUGIN_VERSION "1.12.19 h3"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -842,6 +842,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		GetClientAuthString(client, SteamID, sizeof(SteamID));
 		g_fPlayerCooldownStartedAt[client] = GetGameTime();
 		
+		g_iDynamicDisplayTime[client] = 0;
 		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
 		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
