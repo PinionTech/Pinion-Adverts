@@ -199,7 +199,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.19 h1"
+#define PLUGIN_VERSION "1.12.19 h2"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -698,6 +698,7 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
 	g_fPlayerCooldownStartedAt[client] = 0.0;
 	g_bIsQueryRunning[client] = false;
+	g_iDynamicDisplayTime[client] = 0;
 }
 
 // Called when a player regains control of a character (after a map-stage load)
