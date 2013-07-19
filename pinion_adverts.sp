@@ -21,8 +21,37 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.19 <-> 2013 7/16 - David Banham
+		Stop redirecting the page to about:blank before cleanup can be done
+	1.12.18 <-> 2013 6/5 - Caelan Borowiec
+		Removed "Pot of Gold" message
+		Added check to prevent more than one query thread per client
+		Added a check to prevent queries running for clients with immunity
+		Changed query handing to query as long as the player is in the default cooldown
+		Debug improvements to EasyHTTP and Helper_GetAdStatus_Complete
+		Fixed an issue that could happen if the plugin received no data from a query
+		Improved some debug messages
+		Changed the backend interface to expect data in JSON
+		Fixed the html page remaining loaded after the panel is closed.
+	1.12.17 <-> 2013 5/29 - Hotfix Based on 1.12.16
+		Increased polling rate
+		Changed the default wait time to a hard-coded 30 seconds
+		Disabled debug mode
+	1.12.16 <-> 2013 4/25 - Caelan Borowiec
+		Fixed an issue with the plugin loading a blank motd window
+		Made SteamTools the prefered extension for queries
+		Replaced cURL/Socket code with a wrapper for EasyHTTP.inc
+			- (Plugin now requires EasyHTTP.inc to compile)
+		Added a countermeasure to prevent players from blocking the closed_htmlpage command
+		Changed the "you must wait" message to only display when a delay has been loaded from the backend.
+		Removed bounds on the page-delay timer
+		Changed the default wait time to a hard-coded 43 seconds
+		Removed hard-coded 3 second addition to the delay
+		Plugin will not run queries on games where dynamic page-delay durations are not supported
+		Plugin no longer requires cURL/Socket to be installed on games where dynamic page-delay durations are not supported
 	1.12.15 <-> 2013 2/6 - Caelan Borowiec
 		Added dynamic minimum durations
+		Added countermeasure to deal with players bypassing the motd window
 	1.12.14 <-> 2013 1/24 - Caelan Borowiec
 		Updated code to use CS:GO's new protobuff methods (Fixes the plugin not functioning in CS:GO).
 	1.12.13 <-> 2013 1/20 - Caelan Borowiec
@@ -135,10 +164,12 @@ Changelog
 
 #include <sourcemod>
 #include <sdktools>
-#include <socket>
-
 #undef REQUIRE_PLUGIN
 #tryinclude <updater>
+#define REQUIRE_PLUGIN
+#define STRING(%1) %1, sizeof(%1)
+#include <EasyHTTP>
+#include <json>
 
 #pragma semicolon 1
 
@@ -168,7 +199,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.15"
+#define PLUGIN_VERSION "1.12.19"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -179,9 +210,11 @@ public Plugin:myinfo =
 };
 
 // The number of times to attempt to query adback.pinion.gg
-#define MAX_QUERY_ATTEMPTS 10
+#define MAX_QUERY_ATTEMPTS 20
 //The number of seconds to delay between failed query attempts
 #define QUERY_DELAY 3.0
+// The number of seconds players will wait if the backend doesnt respond
+#define DEF_COOLDOWN 30
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
@@ -217,18 +250,17 @@ new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
 new Handle:g_ConVar_URL;
-new Handle:g_ConVarCooldown;
-new Handle:g_ConVarMaxCooldown;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
 new Handle:g_ConVarTF2EventOption;
 
 // Globals required/used by dynamic delay code
-new g_iCurrentIteration[MAXPLAYERS +1];
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
 new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
-new bool:g_iIsMapActive = false;
+new bool:g_bIsMapActive = false;
+new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
+new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
 
 
 // Configuration
@@ -251,9 +283,6 @@ new g_iLastAdWave = -1; // TODO: Reset this value to -1 when the last player lea
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
-	// Backwards compatibility pre csgo/sm1.5
-	MarkNativeAsOptional("GetUserMessageType");
-	
 	// Game Detection
 	decl String:szGameDir[32];
 	GetGameFolderName(szGameDir, sizeof(szGameDir));
@@ -274,26 +303,132 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 		return APLRes_Failure;
 	}
 	
+	// Backwards compatibility pre csgo/sm1.5
+	MarkNativeAsOptional("GetUserMessageType");
+	
+	// Mark Socket natives as optional
+	MarkNativeAsOptional("SocketIsConnected");
+	MarkNativeAsOptional("SocketCreate");
+	MarkNativeAsOptional("SocketBind");
+	MarkNativeAsOptional("SocketConnect");
+	MarkNativeAsOptional("SocketDisconnect");
+	MarkNativeAsOptional("SocketListen");
+	MarkNativeAsOptional("SocketSend");
+	MarkNativeAsOptional("SocketSendTo");
+	MarkNativeAsOptional("SocketSetOption");
+	MarkNativeAsOptional("SocketSetReceiveCallback");
+	MarkNativeAsOptional("SocketSetSendqueueEmptyCallback");
+	MarkNativeAsOptional("SocketSetDisconnectCallback");
+	MarkNativeAsOptional("SocketSetErrorCallback");
+	MarkNativeAsOptional("SocketSetArg");
+	MarkNativeAsOptional("SocketGetHostName");
+
+	// Mark SteamTools natives as optional
+	MarkNativeAsOptional("Steam_IsVACEnabled");
+	MarkNativeAsOptional("Steam_GetPublicIP");
+	MarkNativeAsOptional("Steam_RequestGroupStatus");
+	MarkNativeAsOptional("Steam_RequestGameplayStats");
+	MarkNativeAsOptional("Steam_RequestServerReputation");
+	MarkNativeAsOptional("Steam_IsConnected");
+	MarkNativeAsOptional("Steam_SetRule");
+	MarkNativeAsOptional("Steam_ClearRules");
+	MarkNativeAsOptional("Steam_ForceHeartbeat");
+	MarkNativeAsOptional("Steam_AddMasterServer");
+	MarkNativeAsOptional("Steam_RemoveMasterServer");
+	MarkNativeAsOptional("Steam_GetNumMasterServers");
+	MarkNativeAsOptional("Steam_GetMasterServerAddress");
+	MarkNativeAsOptional("Steam_SetGameDescription");
+	MarkNativeAsOptional("Steam_RequestStats");
+	MarkNativeAsOptional("Steam_GetStat");
+	MarkNativeAsOptional("Steam_GetStatFloat");
+	MarkNativeAsOptional("Steam_IsAchieved");
+	MarkNativeAsOptional("Steam_GetNumClientSubscriptions");
+	MarkNativeAsOptional("Steam_GetClientSubscription");
+	MarkNativeAsOptional("Steam_GetNumClientDLCs");
+	MarkNativeAsOptional("Steam_GetClientDLC");
+	MarkNativeAsOptional("Steam_GetCSteamIDForClient");
+	MarkNativeAsOptional("Steam_SetCustomSteamID");
+	MarkNativeAsOptional("Steam_GetCustomSteamID");
+	MarkNativeAsOptional("Steam_RenderedIDToCSteamID");
+	MarkNativeAsOptional("Steam_CSteamIDToRenderedID");
+	MarkNativeAsOptional("Steam_GroupIDToCSteamID");
+	MarkNativeAsOptional("Steam_CSteamIDToGroupID");
+	MarkNativeAsOptional("Steam_CreateHTTPRequest");
+	MarkNativeAsOptional("Steam_SetHTTPRequestNetworkActivityTimeout");
+	MarkNativeAsOptional("Steam_SetHTTPRequestHeaderValue");
+	MarkNativeAsOptional("Steam_SetHTTPRequestGetOrPostParameter");
+	MarkNativeAsOptional("Steam_SendHTTPRequest");
+	MarkNativeAsOptional("Steam_DeferHTTPRequest");
+	MarkNativeAsOptional("Steam_PrioritizeHTTPRequest");
+	MarkNativeAsOptional("Steam_GetHTTPResponseHeaderSize");
+	MarkNativeAsOptional("Steam_GetHTTPResponseHeaderValue");
+	MarkNativeAsOptional("Steam_GetHTTPResponseBodySize");
+	MarkNativeAsOptional("Steam_GetHTTPResponseBodyData");
+	MarkNativeAsOptional("Steam_WriteHTTPResponseBody");
+	MarkNativeAsOptional("Steam_ReleaseHTTPRequest");
+	MarkNativeAsOptional("Steam_GetHTTPDownloadProgressPercent");
+
+	// Mark cURL natives as optional
+	MarkNativeAsOptional("curl_easy_init");
+	MarkNativeAsOptional("curl_easy_setopt_string");
+	MarkNativeAsOptional("curl_easy_setopt_int");
+	MarkNativeAsOptional("curl_easy_setopt_int_array");
+	MarkNativeAsOptional("curl_easy_setopt_int64");
+	MarkNativeAsOptional("curl_OpenFile");
+	MarkNativeAsOptional("curl_httppost");
+	MarkNativeAsOptional("curl_slist");
+	MarkNativeAsOptional("curl_easy_setopt_handle");
+	MarkNativeAsOptional("curl_easy_setopt_function");
+	MarkNativeAsOptional("curl_load_opt");
+	MarkNativeAsOptional("curl_easy_perform");
+	MarkNativeAsOptional("curl_easy_perform_thread");
+	MarkNativeAsOptional("curl_easy_send_recv");
+	MarkNativeAsOptional("curl_send_recv_Signal");
+	MarkNativeAsOptional("curl_send_recv_IsWaiting");
+	MarkNativeAsOptional("curl_set_send_buffer");
+	MarkNativeAsOptional("curl_set_receive_size");
+	MarkNativeAsOptional("curl_set_send_timeout");
+	MarkNativeAsOptional("curl_set_recv_timeout");
+	MarkNativeAsOptional("curl_get_error_buffer");
+	MarkNativeAsOptional("curl_easy_getinfo_string");
+	MarkNativeAsOptional("curl_easy_getinfo_int");
+	MarkNativeAsOptional("curl_easy_escape");
+	MarkNativeAsOptional("curl_easy_unescape");
+	MarkNativeAsOptional("curl_easy_strerror");
+	MarkNativeAsOptional("curl_version");
+	MarkNativeAsOptional("curl_protocols");
+	MarkNativeAsOptional("curl_features");
+	MarkNativeAsOptional("curl_OpenFile");
+	MarkNativeAsOptional("curl_httppost");
+	MarkNativeAsOptional("curl_formadd");
+	MarkNativeAsOptional("curl_slist");
+	MarkNativeAsOptional("curl_slist_append");
+	MarkNativeAsOptional("curl_hash_file");
+	MarkNativeAsOptional("curl_hash_string");
+	
 	return APLRes_Success;
 }
 
 // Configure Environment
 public OnPluginStart()
 {
+	EasyHTTPCheckExtensions();
+	if(!g_bCURL && !g_bSockets && ! g_bSteamTools && g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D)
+		SetFailState("For this plugin to run you need ONE of these extensions installed:\n\
+			cURL - http://forums.alliedmods.net/showthread.php?t=152216\n\
+			SteamTools - http://forums.alliedmods.net/showthread.php?t=129763\n\
+			Socket - http://forums.alliedmods.net/showthread.php?t=67640");
+
 	// Catch the MOTD
 	new UserMsg:VGUIMenu = GetUserMessageId("VGUIMenu");
 	if (VGUIMenu == INVALID_MESSAGE_ID)
 		SetFailState("Failed to find VGUIMenu usermessage");
 	
 	HookUserMessage(VGUIMenu, OnMsgVGUIMenu, true);
-
-	// Hook the MOTD OK button
 	AddCommandListener(PageClosed, "closed_htmlpage");
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarCooldown = CreateConVar("sm_motdredirect_force_min_duration", "25", "Prevent the MOTD from being closed for this many seconds (Min: 15 sec, Max: 40 sec, 0 = Disables).", 0, true, 0.0, true, 40.0);
-	g_ConVarMaxCooldown = CreateConVar("sm_motdredirect_max_forced_duration", "-1", "The maximum amount of time the MOTD will be forced to remain open (Min: 15 sec. Max: 40 sec. 0 = no forced waiting).", 0, true, 0.0, true, 40.0);
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
@@ -330,10 +465,8 @@ public OnPluginStart()
 #if defined _updater_included
 public OnLibraryAdded(const String:name[])
 {
-    if (StrEqual(name, "updater"))
-    {
-        Updater_AddPlugin(UPDATE_URL);
-    }
+	if (StrEqual(name, "updater"))
+		Updater_AddPlugin(UPDATE_URL);
 }
 #endif
 
@@ -394,7 +527,6 @@ public OnAllPluginsLoaded()
 				new String:sDataEscape[128];
 				strcopy(sDataEscape, sizeof(sDataEscape), sData);
 				ReplaceString(sDataEscape, sizeof(sDataEscape), " ", "+");
-				//WriteFileLine(hMOTD, "<meta http-equiv='Refresh' content='0; url=http://google.com/?q=%s'>", sDataEscape);
 				WriteFileLine(hMOTD, "Pinion cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 			}
 			CloseHandle(hMOTD);
@@ -503,12 +635,12 @@ public Event_PlayerActivate(Handle:event, const String:name[], bool:dontBroadcas
 public OnMapEnd()
 {
 	g_iLastAdWave = -1;	// Reset the value so adverts aren't triggered the first round after a map load
-	g_iIsMapActive = false;
+	g_bIsMapActive = false;
 }
 
 public OnMapStart()
 {
-	g_iIsMapActive = true;
+	g_bIsMapActive = true;
 }
 
 public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
@@ -546,6 +678,7 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 
 public OnClientAuthorized(client, const String:SteamID[])
 {
+	g_bIsQueryRunning[client] = false;
 	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
 		new n;
@@ -564,6 +697,7 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	decl String:SteamID[32];
 	GetClientAuthString(client, SteamID, sizeof(SteamID));
 	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+	g_fPlayerCooldownStartedAt[client] = 0.0;
 }
 
 // Called when a player regains control of a character (after a map-stage load)
@@ -675,7 +809,6 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
 	new trigger = ReadPackCell(pack);
-	
 	CloseHandle(pack);
 	
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
@@ -704,8 +837,16 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		new timeleft;
 		GetMapTimeLeft(timeleft);
 		
-		if ((timeleft > 30 || timeleft < 0) && g_iIsMapActive)
-			GetClientAdvertDelay(client);
+		new String:SteamID[32];
+		GetClientAuthString(client, SteamID, sizeof(SteamID));
+		g_fPlayerCooldownStartedAt[client] = GetGameTime();
+		
+		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
+		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
+		{
+			g_bIsQueryRunning[client] = true;
+			CreateTimer(1.0, DelayQuery, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+		}
 		
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
@@ -730,11 +871,8 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
 	
-	new iCooldown = GetConVarInt(g_ConVarMaxCooldown);
-	if (iCooldown == -1)
-		iCooldown = GetConVarInt(g_ConVarCooldown);
-	
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && iCooldown != 0 && !bClientHasImmunity);
+
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
@@ -751,20 +889,69 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	return Plugin_Stop;
 }
 
+// Delays a easy HTTP query by 1 second
+public Action:DelayQuery(Handle:timer, any:serial)
+{
+	new client = GetClientFromSerial(serial);
+	g_iNumQueryAttempts[client] = 1;
+	g_iDynamicDisplayTime[client] = 0;
+	GetClientAdvertDelayEasyHTTP(client);
+}
+
+//Returns true if the client is waiting to close the MOTD
+public bool:IsClientInForcedCooldown(client)
+{
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "Checking forced cooldown.");
+	#endif
+	
+	
+	if (g_iDynamicDisplayTime[client] != 0)
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "The backend has already updated the value for this client");
+		#endif
+		return false; // Backend has responded
+	}
+	
+	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
+	if (!bUseCooldown)
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Cooldown does not apply to this client");
+		#endif
+		return false;	//Cooldown does not apply to this target
+	}
+	
+	if (g_fPlayerCooldownStartedAt[client] != 0)
+	{
+		new timeleft = DEF_COOLDOWN - RoundToFloor(GetGameTime() - g_fPlayerCooldownStartedAt[client]);
+		if (timeleft > 0)
+		{
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Client is in cooldown for %i more seconds", timeleft);
+			#endif
+			return true;
+		}
+	}
+	return false;
+}
+
 public Action:ClosePage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
 	
+	if (!client)
+		return;
+	
 	if (GetState(client) == kAdClosing || GetState(client) == kViewingAd)	//Ad is loaded
 	{
-		new trigger = ReadPackCell(pack);
-		
-		if (!client)
-			return;
-		ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-		if (trigger != _:AD_TRIGGER_CONNECT)
-			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		if (GetClientTeam(client) != 0) // player has joined a team
+			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		else // Player still needs the menu open
+			ShowMOTDPanelEx(client, MOTD_TITLE, "http://Pinion.gg", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 	}
 }
 
@@ -853,46 +1040,26 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		return Plugin_Continue;
 	
 	new Float:flStartTime = ReadPackFloat(data);
-	new iCooldown;
-
-	new iMaxCooldown = GetConVarInt(g_ConVarMaxCooldown);
-	if (iMaxCooldown == -1)
-		iMaxCooldown = GetConVarInt(g_ConVarCooldown);
+	
+	new iCooldown = DEF_COOLDOWN; // Default cooldown
 	
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
-		if (g_iDynamicDisplayTime[client] < iMaxCooldown)	// ...AND the backend's value is Not Greater than the server's set max
-			iCooldown = g_iDynamicDisplayTime[client]; // Use backend's value
-		else // Backend's value was longer than the max
-		{
-			iCooldown = iMaxCooldown; // Use the max
-			// Apply our bounds
-			if (iCooldown > 40)
-				iCooldown = 40;
-			else if (iCooldown < 15)
-				iCooldown = 15;
-		}
+		iCooldown = g_iDynamicDisplayTime[client]; // Use backend's value
 	}
 	else if (g_iDynamicDisplayTime[client] < 0) //Backend said there was nothing
 	{
 		iCooldown = 0; // Ditch the cooldown
 	}
-	else // The backend didn't respond with anything valid!
-	{	
-		iCooldown = iMaxCooldown;
-		
-		// Apply our bounds
-		if (iCooldown > 40)
-			iCooldown = 40;
-		else if (iCooldown < 15)
-			iCooldown = 15;
-	}
-	iCooldown = iCooldown + 3;
+	//else // The backend didn't respond with anything valid!
 	
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
-		PrintCenterText(client, "You may continue in %d seconds or stay tuned for Pinion Pot of Gold.", timeleft);
+		if (g_iDynamicDisplayTime[client] > 0)
+			PrintCenterText(client, "You may continue in %d seconds.", timeleft);
+		else
+			PrintCenterText(client, "Loading...");
 		ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		return Plugin_Continue;
 	}
@@ -937,159 +1104,92 @@ stock bool:BGameUsesVGUIEnum()
 }
 
 
-
-// Code for Dynamic Durations
-GetClientAdvertDelay(client)
+public Action:QueryAgain(Handle:timer, any:serial)
 {
-	g_iNumQueryAttempts[client] = 1;
-	g_iCurrentIteration[client] = 1;
-	g_iDynamicDisplayTime[client] = 0;
-	
-	new String:Domain[] = "adback.pinion.gg";
-	new String:sQueryURL[] = "duration/";
-	
-	//Create the pack and fill it with data
-	new Handle:hPack = CreateDataPack();
-	WritePackString(hPack, sQueryURL); //Remote File
-	WritePackString(hPack, Domain); //Domain
-	WritePackCell(hPack, GetClientSerial(client));
-
-	//Create a socket connection and pass the pack handle
-	new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
-	SocketSetArg(socket, hPack);
-	SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, Domain, 80);
+	new client = GetClientFromSerial(serial);
+	g_iNumQueryAttempts[client]++;
+	GetClientAdvertDelayEasyHTTP(client);
 }
 
-public OnSocketConnected(Handle:socket, any:hPack)
+GetClientAdvertDelayEasyHTTP(client)
 {
-	new String:DownloadFrom[512], String:Domain[512], String:SteamID[32];
-	
-	ResetPack(hPack);
-	ReadPackString(hPack, DownloadFrom, sizeof(DownloadFrom)); //Remote path
-	ReadPackString(hPack, Domain, sizeof(Domain)); //Remote
-	
-	new client = GetClientFromSerial(ReadPackCell(hPack));
 	if (client == 0)
 		return;
 	
+	new String:sQueryURL[84] = "http://adback.pinion.gg/v2/duration/";
+	new String:SteamID[32];
 	GetClientAuthString(client, SteamID, sizeof(SteamID));
 	
+	StrCat(sQueryURL, sizeof(sQueryURL), SteamID);
 	
-	new String:buffer[1024];
-	Format(buffer, sizeof(buffer), "GET /%s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", DownloadFrom, SteamID, Domain);
 	#if defined SHOW_CONSOLE_MESSAGES
-	PrintToConsole(client, "\n\nQuerying url: %s/%s%s", Domain, DownloadFrom, SteamID);
+	PrintToConsole(client, "\n\nQuerying URL: %s", sQueryURL);
 	#endif
-	SocketSend(socket, buffer);
-}
-
-public OnSocketReceive(Handle:socket, String:receiveData[], const dataSize, any:hPack)
-{
-	new String:DownloadFrom[512], String:Domain[512];
 	
-	ResetPack(hPack);
-	ReadPackString(hPack, DownloadFrom, sizeof(DownloadFrom)); //Remote path
-	ReadPackString(hPack, Domain, sizeof(Domain)); //Remote domain
-	new client = GetClientFromSerial(ReadPackCell(hPack));
-	if (client == 0)
+	// Request a customized ad delay for the client
+	if(!EasyHTTP(sQueryURL, Helper_GetAdStatus_Complete, GetClientUserId(client)))
+	{
+		LogError("Sending EasyHTTP request failed.");
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Sending EasyHTTP request failed.");
+		#endif
 		return;
-
-	new pos = 0;
-	if (g_iCurrentIteration[client] == 1)
-	{
-		pos = 4;
-		while (!(receiveData[pos-4] == '\r' && receiveData[pos-3] == '\n' && receiveData[pos-2] == '\r' && receiveData[pos-1] == '\n'))
-			pos++;
-
-		new String:szHeader[pos-4];
-		strcopy(szHeader, pos-4, receiveData);
-		new lenPos = StrContains(szHeader, "Content-Length: ", false);
-		if (lenPos != -1)
-		{
-			lenPos += 16;
-			new String:szContentLength[32];
-			new x = 0;
-			while (szHeader[lenPos] != '\r' && szHeader[lenPos+1] != '\n')
-				szContentLength[x++] = szHeader[lenPos++];
-			
-			szContentLength[x] = '\0';
-		}
 	}
-
-	new String:sData[4096];
-	strcopy(sData, sizeof(sData), receiveData[pos]);
-	TrimString(sData);
-	
-	#if defined SHOW_CONSOLE_MESSAGES
-	PrintToConsole(client, "Query returned '%s'", sData);
-	#endif
-	if (!StrEqual(sData, ""))
-	{
-		new queryResult = StringToInt(sData);
-		if (queryResult == 0)
-		{
-			new Handle:pack = CloneHandle(hPack);
-			CreateTimer(QUERY_DELAY, QueryAgain, pack, TIMER_FLAG_NO_MAPCHANGE);
-		}
-		else
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Query finished, StringToInt returned %i", queryResult);
-			#endif
-			//Update the delay timer
-			g_iDynamicDisplayTime[client] = queryResult;
-		}
-	}
-	
-	g_iCurrentIteration[client]++;
 }
 
-// QueryAgain decides if a query should be reattempted and creates the query if yes
-public Action:QueryAgain(Handle:timer, Handle:hPack)
+public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:success, error)
 {
-	new String:Domain[512];
-	ResetPack(hPack);
-	ReadPackString(hPack, Domain, sizeof(Domain));
-	ReadPackString(hPack, Domain, sizeof(Domain));
-	new client = GetClientFromSerial(ReadPackCell(hPack));
-	if (client == 0)
+	// Make sure our client is still ingame
+	new client = GetClientOfUserId(userid);
+	if(!client || !IsClientInGame(client))
+		return;
+		
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToConsole(client, "Query #%i returned '%s'", g_iNumQueryAttempts[client], sQueryData);
+	#endif
+		
+	// Check if the request failed for whatever reason
+	if(!success || StrEqual(sQueryData, ""))
 	{
-		CloseHandle(hPack);
+		LogError("Request failed. EasyHTTP reported failure.  Error: %i", error);
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Request failed. EasyHTTP reported failure or no data was returned.  Error: %i", error);
+		PrintToConsole(client, "Retrying query...");
+		#endif
+		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		return;
 	}
 	
-	if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+	new JSON:hJson = json_decode(sQueryData); 
+	new queryResult = -1;
+	
+	if (hJson != JSON_INVALID && json_get_cell(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Query failed: StringToInt returned 0.  Giving up after %i attempts.", g_iNumQueryAttempts[client]);
+		PrintToConsole(client, "Query finished, backend returned delay of %i", queryResult);
 		#endif
-		CloseHandle(hPack);
+		//Update the delay timer
+		g_iDynamicDisplayTime[client] = queryResult;
+		g_bIsQueryRunning[client] = false;
+		return;
+	}
+	//else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
+	else if (!IsClientInForcedCooldown(client))
+	{
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Query failed: Giving up after %i attempts.", g_iNumQueryAttempts[client]);
+		#endif
 		g_iNumQueryAttempts[client] = 1;
+		g_bIsQueryRunning[client] = false;
+		return;
 	}
 	else
-	{
+	{ 
 		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Query #%i failed: StringToInt returned 0.  Attempting query again.", g_iNumQueryAttempts[client]);
+		PrintToConsole(client, "Query failed: Retrying...", sQueryData);
 		#endif
-		g_iNumQueryAttempts[client] ++;
 		
-		//Create a socket connection and pass the pack handle
-		g_iCurrentIteration[client] = 1;
-		new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
-		SocketSetArg(socket, hPack);
-		SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, Domain, 80);
+		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+		return;
 	}
-}
-
-public OnSocketError(Handle:socket, const errorType, const errorNum, any:hPack)
-{
-	LogError("Something went wrong querying the backend.  Socket error %d [errno %d]", errorType, errorNum);
-	CloseHandle(hPack);
-	CloseHandle(socket);
-}
-
-public OnSocketDisconnected(Handle:socket, any:hPack)
-{
-	CloseHandle(hPack);
-	CloseHandle(socket);
 }
