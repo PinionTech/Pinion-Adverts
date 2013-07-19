@@ -13,14 +13,17 @@ Installation:
 	Changes to cvars made in console take effect immediately.
 
 Files:
-	cstrike/addons/sourcemod/plugins/pinion_adverts.smx
-	cstrike/cfg/sourcemod/pinion_adverts.cfg
+	./addons/sourcemod/plugins/pinion_adverts.smx
+	./cfg/sourcemod/pinion_adverts.cfg
 
 Configuration Variables: See pinion_adverts.cfg.
 
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.20 <-> 2013 7/18 - Caelan Borowiec
+		Fixed a case where delay queries would not be started
+		Fixed a case where delay times from the backend could be cached
 	1.12.19 <-> 2013 7/16 - David Banham
 		Stop redirecting the page to about:blank before cleanup can be done
 	1.12.18 <-> 2013 6/5 - Caelan Borowiec
@@ -199,7 +202,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.19"
+#define PLUGIN_VERSION "1.12.20"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -678,7 +681,6 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 
 public OnClientAuthorized(client, const String:SteamID[])
 {
-	g_bIsQueryRunning[client] = false;
 	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
 		new n;
@@ -698,6 +700,8 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	GetClientAuthString(client, SteamID, sizeof(SteamID));
 	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
 	g_fPlayerCooldownStartedAt[client] = 0.0;
+	g_bIsQueryRunning[client] = false;
+	g_iDynamicDisplayTime[client] = 0;
 }
 
 // Called when a player regains control of a character (after a map-stage load)
@@ -845,6 +849,9 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
 			g_bIsQueryRunning[client] = true;
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Preparing to run query...");
+			#endif
 			CreateTimer(1.0, DelayQuery, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
 		
