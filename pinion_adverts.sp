@@ -176,7 +176,7 @@ Changelog
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
 
-//#define SHOW_CONSOLE_MESSAGES
+#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -199,7 +199,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.19 h3"
+#define PLUGIN_VERSION "1.12.19 h4"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -443,6 +443,7 @@ public OnPluginStart()
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 	
 	HookEvent("player_activate", Event_PlayerActivate);
+	HookEvent("player_disconnect", Event_PlayerDisconnected);
 	
 	for (new i = 1; i <= MaxClients; ++i)
 	{
@@ -572,7 +573,6 @@ SetupReView()
 	{
 		g_hPlayerLastViewedAd = CreateTrie();
 		HookEvent("player_transitioned", Event_PlayerTransitioned);
-		HookEvent("player_disconnect", Event_PlayerDisconnected);
 	}
 }
 
