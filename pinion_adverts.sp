@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.21 <-> 2013 7/23 - Caelan Borowiec
+		Fixed a case where delay times from the backend would be cached after the first connection
 	1.12.20 <-> 2013 7/18 - Caelan Borowiec
 		Fixed a case where delay queries would not be started
 		Fixed a case where delay times from the backend could be cached
@@ -202,7 +204,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.20"
+#define PLUGIN_VERSION "1.12.21"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -446,6 +448,7 @@ public OnPluginStart()
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 	
 	HookEvent("player_activate", Event_PlayerActivate);
+	HookEvent("player_disconnect", Event_PlayerDisconnected);
 	
 	for (new i = 1; i <= MaxClients; ++i)
 	{
@@ -575,7 +578,6 @@ SetupReView()
 	{
 		g_hPlayerLastViewedAd = CreateTrie();
 		HookEvent("player_transitioned", Event_PlayerTransitioned);
-		HookEvent("player_disconnect", Event_PlayerDisconnected);
 	}
 }
 
@@ -696,9 +698,12 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	if (!client || !IsClientAuthorized(client))
 		return;
 	
-	decl String:SteamID[32];
-	GetClientAuthString(client, SteamID, sizeof(SteamID));
-	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
+	{
+		decl String:SteamID[32];
+		GetClientAuthString(client, SteamID, sizeof(SteamID));
+		RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+	}
 	g_fPlayerCooldownStartedAt[client] = 0.0;
 	g_bIsQueryRunning[client] = false;
 	g_iDynamicDisplayTime[client] = 0;
