@@ -13,31 +13,35 @@ Installation:
 	Changes to cvars made in console take effect immediately.
 
 Files:
-	cstrike/addons/sourcemod/plugins/pinion_adverts.smx
-	cstrike/cfg/sourcemod/pinion_adverts.cfg
+	./addons/sourcemod/plugins/pinion_adverts.smx
+	./cfg/sourcemod/pinion_adverts.cfg
 
 Configuration Variables: See pinion_adverts.cfg.
 
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	1.12.18g <-> 2013 6/5 - Caelan Borowiec
-		Turned off debug messages
+	1.12.21 <-> 2013 7/23 - Caelan Borowiec
+		Fixed a case where delay times from the backend would be cached after the first connection
+	1.12.20 <-> 2013 7/18 - Caelan Borowiec
+		Fixed a case where delay queries would not be started
+		Fixed a case where delay times from the backend could be cached
+	1.12.19 <-> 2013 7/16 - David Banham
+		Stop redirecting the page to about:blank before cleanup can be done
+	1.12.18 <-> 2013 6/5 - Caelan Borowiec
 		Removed "Pot of Gold" message
-	1.12.18f <-> 2013 5/29 - Caelan Borowiec
 		Added check to prevent more than one query thread per client
 		Added a check to prevent queries running for clients with immunity
-	1.12.18e <-> 2013 5/28 - Caelan Borowiec
 		Changed query handing to query as long as the player is in the default cooldown
-	1.12.18d <-> 2013 5/21 - Caelan Borowiec
 		Debug improvements to EasyHTTP and Helper_GetAdStatus_Complete
-	1.12.18c <-> 2013 5/20 - Caelan Borowiec
 		Fixed an issue that could happen if the plugin received no data from a query
 		Improved some debug messages
-	1.12.18b <-> 2013 5/20 - Caelan Borowiec
 		Changed the backend interface to expect data in JSON
-	1.12.18a <-> 2013 5/12 - Caelan Borowiec
-		Fixed the motd remaining loaded after the panel is closed.
+		Fixed the html page remaining loaded after the panel is closed.
+	1.12.17 <-> 2013 5/29 - Hotfix Based on 1.12.16
+		Increased polling rate
+		Changed the default wait time to a hard-coded 30 seconds
+		Disabled debug mode
 	1.12.16 <-> 2013 4/25 - Caelan Borowiec
 		Fixed an issue with the plugin loading a blank motd window
 		Made SteamTools the prefered extension for queries
@@ -200,7 +204,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.18f"
+#define PLUGIN_VERSION "1.12.21"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -211,7 +215,7 @@ public Plugin:myinfo =
 };
 
 // The number of times to attempt to query adback.pinion.gg
-#define MAX_QUERY_ATTEMPTS 10
+#define MAX_QUERY_ATTEMPTS 20
 //The number of seconds to delay between failed query attempts
 #define QUERY_DELAY 3.0
 // The number of seconds players will wait if the backend doesnt respond
@@ -444,6 +448,7 @@ public OnPluginStart()
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 	
 	HookEvent("player_activate", Event_PlayerActivate);
+	HookEvent("player_disconnect", Event_PlayerDisconnected);
 	
 	for (new i = 1; i <= MaxClients; ++i)
 	{
@@ -573,7 +578,6 @@ SetupReView()
 	{
 		g_hPlayerLastViewedAd = CreateTrie();
 		HookEvent("player_transitioned", Event_PlayerTransitioned);
-		HookEvent("player_disconnect", Event_PlayerDisconnected);
 	}
 }
 
@@ -595,7 +599,6 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
 			#endif
-			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 			FakeClientCommand(client, "joingame");
 			#if defined SHOW_CONSOLE_MESSAGES
@@ -607,7 +610,6 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
 			#endif
-			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "javascript:windowClosed() sent to client.");
@@ -681,7 +683,6 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 
 public OnClientAuthorized(client, const String:SteamID[])
 {
-	g_bIsQueryRunning[client] = false;
 	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
 		new n;
@@ -697,10 +698,15 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	if (!client || !IsClientAuthorized(client))
 		return;
 	
-	decl String:SteamID[32];
-	GetClientAuthString(client, SteamID, sizeof(SteamID));
-	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
+	{
+		decl String:SteamID[32];
+		GetClientAuthString(client, SteamID, sizeof(SteamID));
+		RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+	}
 	g_fPlayerCooldownStartedAt[client] = 0.0;
+	g_bIsQueryRunning[client] = false;
+	g_iDynamicDisplayTime[client] = 0;
 }
 
 // Called when a player regains control of a character (after a map-stage load)
@@ -848,6 +854,9 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
 			g_bIsQueryRunning[client] = true;
+			#if defined SHOW_CONSOLE_MESSAGES
+			PrintToConsole(client, "Preparing to run query...");
+			#endif
 			CreateTimer(1.0, DelayQuery, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
 		

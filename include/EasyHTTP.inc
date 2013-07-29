@@ -1,3 +1,7 @@
+/*
+Attribution: https://bitbucket.org/motdplayer/sm-adplugin/src
+*/
+
 #if defined _easyhttp_included
  #endinput
 #endif
