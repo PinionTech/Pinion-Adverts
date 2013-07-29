@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.22 b1 <-> 2013 7/28 - Caelan Borowiec
+		Immunity is no longer handled locally, but is instead reported to the backend for handling
 	1.12.21 <-> 2013 7/23 - Caelan Borowiec
 		Fixed a case where delay times from the backend would be cached after the first connection
 	1.12.20 <-> 2013 7/18 - Caelan Borowiec
@@ -204,7 +206,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.21"
+#define PLUGIN_VERSION "1.12.22 b1"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -823,10 +825,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	new bool:bClientHasImmunity = false;
-	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
-		bClientHasImmunity = true;
-	
+	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
 	if (bClientHasImmunity && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
 		return Plugin_Stop; //Cancel re-view ads
 	
@@ -863,8 +862,12 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
 		
+		
 		decl String:szURL[128];
-		Format(szURL, sizeof(szURL), "%s&steamid=%s&trigger=%i", g_BaseURL, szAuth, trigger);
+		Format(szURL, sizeof(szURL), "%s&steamid=%s", g_BaseURL, szAuth);
+		if (bClientHasImmunity)
+			Format(szURL, sizeof(szURL), "%s&imm=1", szURL);
+		Format(szURL, sizeof(szURL), "%s&trigger=%i", szURL, trigger);
 		KvSetString(kv, "msg",	szURL);
 		
 		new Handle:pack2;
@@ -884,7 +887,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	CloseHandle(kv);
 	
 
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D); //&& !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
@@ -926,14 +929,13 @@ public bool:IsClientInForcedCooldown(client)
 		return false; // Backend has responded
 	}
 	
-	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
 	if (!bUseCooldown)
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Cooldown does not apply to this client");
+		PrintToConsole(client, "Cooldown does not apply in this game");
 		#endif
-		return false;	//Cooldown does not apply to this target
+		return false;	//Cooldown does not apply here
 	}
 	
 	if (g_fPlayerCooldownStartedAt[client] != 0)
