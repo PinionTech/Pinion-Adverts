@@ -21,7 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	1.12.22 b2 <-> 2013 7/31- Caelan Borowiec
+	1.12.22 b3 <-> 2013 7/31 - Caelan Borowiec
+		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
+			Custom/edited copies of motd_text.txt will not be touched
+	1.12.22 b2 <-> 2013 7/31 - Caelan Borowiec
 		Removed the sm_motdredirect_immunity_enable cvar which will be replaced with a web panel setting
 	1.12.22 b1 <-> 2013 7/28 - Caelan Borowiec
 		Immunity is no longer handled locally, but is instead reported to the backend for handling
@@ -208,7 +211,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.22 b2"
+#define PLUGIN_VERSION "1.12.22 b3"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -541,6 +544,43 @@ public OnAllPluginsLoaded()
 		}
 		SetFailState("This plugin cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 	}
+	
+	// Handle the motd_text.txt setup here
+	if (FileExists("motd_text.txt")) // File exists: check contents
+	{
+		new Handle:hMOTD_Text = OpenFile("motd_text.txt", "r");
+		new String:sOldMOTD[2048]; 
+		ReadFileString(hMOTD_Text, sOldMOTD, 2048);
+		CloseHandle(hMOTD_Text);
+		
+		if (StrContains(sOldMOTD, "Welcome to Team Fortress 2\n\nOur map rotation is:\n-", false) != -1)
+		{
+			if(!FileExists("motd_text_backup.txt"))
+			{
+				new Handle:hMOTD_Text_Backup = OpenFile("motd_text_backup.txt", "w");
+				WriteFileString(hMOTD_Text_Backup, sOldMOTD, true);
+				CloseHandle(hMOTD_Text_Backup);
+			}
+			RewriteTextMOTD();
+		}
+	}
+	else	//There is no motd_text: lets write one
+		RewriteTextMOTD();
+}
+
+RewriteTextMOTD()
+{
+	new Handle:hMOTD_Text = OpenFile("motd_text.txt", "w");
+	WriteFileString(hMOTD_Text, "Community Message:\n\n\
+You appear to have HTML MOTDs disabled.\n\
+Please help to support this community by enabling them!\n\n\
+Type cl_disablehtmlmotd 0 into console, or follow these steps:\n\
+- Press Escape\n\
+- Select Options\n\
+- Select Multiplayer\n\
+- Select Advanced\n\
+- Uncheck Disable HTML MOTDs", true);
+	CloseHandle(hMOTD_Text);
 }
 
 
