@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.22 b2 <-> 2013 7/31- Caelan Borowiec
+		Removed the sm_motdredirect_immunity_enable cvar which will be replaced with a web panel setting
 	1.12.22 b1 <-> 2013 7/28 - Caelan Borowiec
 		Immunity is no longer handled locally, but is instead reported to the backend for handling
 	1.12.21 <-> 2013 7/23 - Caelan Borowiec
@@ -206,7 +208,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.22 b1"
+#define PLUGIN_VERSION "1.12.22 b2"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -259,7 +261,6 @@ new EGame:g_Game = kGameUnsupported;
 new Handle:g_ConVar_URL;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
-new Handle:g_ConVarImmunityEnabled;
 new Handle:g_ConVarTF2EventOption;
 
 // Globals required/used by dynamic delay code
@@ -439,7 +440,6 @@ public OnPluginStart()
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
-	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -825,7 +825,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
+	new bool:bClientHasImmunity = CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION);
 	if (bClientHasImmunity && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
 		return Plugin_Stop; //Cancel re-view ads
 	
