@@ -600,7 +600,7 @@ RefreshCvarCache()
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	
 	// TODO: Add gamedir url var?
-	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&port=%d&plug_ver=%s", 
+	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d&pv=%s",
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 		hostport,
@@ -904,10 +904,10 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		
 		
 		decl String:szURL[128];
-		Format(szURL, sizeof(szURL), "%s&steamid=%s", g_BaseURL, szAuth);
+		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
 		if (bClientHasImmunity)
-			Format(szURL, sizeof(szURL), "%s&imm=1", szURL);
-		Format(szURL, sizeof(szURL), "%s&trigger=%i", szURL, trigger);
+			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
+		Format(szURL, sizeof(szURL), "%s&tr=%i", szURL, trigger);
 		KvSetString(kv, "msg",	szURL);
 		
 		new Handle:pack2;
