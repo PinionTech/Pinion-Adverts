@@ -211,7 +211,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.22 b3"
+#define PLUGIN_VERSION "1.12.22 b4"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -600,11 +600,10 @@ RefreshCvarCache()
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	
 	// TODO: Add gamedir url var?
-	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d&pv=%s",
+	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d",
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
-		hostport,
-		PLUGIN_VERSION);
+		hostport);
 }
 
 SetupReView()
@@ -907,7 +906,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
 		if (bClientHasImmunity)
 			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
-		Format(szURL, sizeof(szURL), "%s&tr=%i", szURL, trigger);
+		Format(szURL, sizeof(szURL), "%s&pv=%s&tr=%i", szURL, PLUGIN_VERSION, trigger);
 		KvSetString(kv, "msg",	szURL);
 		
 		new Handle:pack2;
