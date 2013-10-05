@@ -21,6 +21,10 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.22 <-> 2013 10/5 - Caelan Borowiec
+		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
+			Custom/edited copies of motd_text.txt will not be touched
+		Made the ad URL shorter by reducing the length of varible names.
 	1.12.21 <-> 2013 7/23 - Caelan Borowiec
 		Fixed a case where delay times from the backend would be cached after the first connection
 	1.12.20 <-> 2013 7/18 - Caelan Borowiec
@@ -204,7 +208,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.21"
+#define PLUGIN_VERSION "1.12.22"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -539,6 +543,43 @@ public OnAllPluginsLoaded()
 		}
 		SetFailState("This plugin cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 	}
+	
+	// Handle the motd_text.txt setup here
+	if (FileExists("motd_text.txt")) // File exists: check contents
+	{
+		new Handle:hMOTD_Text = OpenFile("motd_text.txt", "r");
+		new String:sOldMOTD[2048]; 
+		ReadFileString(hMOTD_Text, sOldMOTD, 2048);
+		CloseHandle(hMOTD_Text);
+		
+		if (StrContains(sOldMOTD, "Welcome to Team Fortress 2\n\nOur map rotation is:\n-", false) != -1)
+		{
+			if(!FileExists("motd_text_backup.txt"))
+			{
+				new Handle:hMOTD_Text_Backup = OpenFile("motd_text_backup.txt", "w");
+				WriteFileString(hMOTD_Text_Backup, sOldMOTD, true);
+				CloseHandle(hMOTD_Text_Backup);
+			}
+			RewriteTextMOTD();
+		}
+	}
+	else	//There is no motd_text: lets write one
+		RewriteTextMOTD();
+}
+
+RewriteTextMOTD()
+{
+	new Handle:hMOTD_Text = OpenFile("motd_text.txt", "w");
+	WriteFileString(hMOTD_Text, "Community Message:\n\n\
+You appear to have HTML MOTDs disabled.\n\
+Please help to support this community by enabling them!\n\n\
+Type cl_disablehtmlmotd 0 into console, or follow these steps:\n\
+- Press Escape\n\
+- Select Options\n\
+- Select Multiplayer\n\
+- Select Advanced\n\
+- Uncheck Disable HTML MOTDs", true);
+	CloseHandle(hMOTD_Text);
 }
 
 
@@ -558,11 +599,10 @@ RefreshCvarCache()
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	
 	// TODO: Add gamedir url var?
-	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&port=%d&plug_ver=%s", 
+	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d",
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
-		hostport,
-		PLUGIN_VERSION);
+		hostport);
 }
 
 SetupReView()
@@ -864,7 +904,10 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
 		
 		decl String:szURL[128];
-		Format(szURL, sizeof(szURL), "%s&steamid=%s&trigger=%i", g_BaseURL, szAuth, trigger);
+		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
+		if (bClientHasImmunity)
+			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
+		Format(szURL, sizeof(szURL), "%s&pv=%s&tr=%i", szURL, PLUGIN_VERSION, trigger);
 		KvSetString(kv, "msg",	szURL);
 		
 		new Handle:pack2;
