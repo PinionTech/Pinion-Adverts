@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.23 <-> 2013 10/5 - Caelan Borowiec
+		Version bump to 1.12.23
 	1.12.22 b4 <-> 2013 8/12 - Caelan Borowiec
 		Made the ad URL shorter by reducing the length of variable names.
 	1.12.22 b3 <-> 2013 7/31 - Caelan Borowiec
@@ -213,7 +215,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.22 b4"
+#define PLUGIN_VERSION "1.12.23"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
