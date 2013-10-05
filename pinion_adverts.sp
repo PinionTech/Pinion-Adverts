@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.22 b4 <-> 2013 8/12 - Caelan Borowiec
+		Made the ad URL shorter by reducing the length of variable names.
 	1.12.22 b3 <-> 2013 7/31 - Caelan Borowiec
 		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
 			Custom/edited copies of motd_text.txt will not be touched
