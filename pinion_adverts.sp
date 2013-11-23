@@ -21,17 +21,16 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
-	1.12.23 <-> 2013 10/5 - Caelan Borowiec
-		Version bump to 1.12.23
-	1.12.22 b4 <-> 2013 8/12 - Caelan Borowiec
-		Made the ad URL shorter by reducing the length of variable names.
-	1.12.22 b3 <-> 2013 7/31 - Caelan Borowiec
+	1.12.24a <-> 2013 11/22 - Caelan Borowiec
+		Fixes for TF2 MOTD Changes:
+			Fixes/changes the method used to reopen the MOTD.
+			Changes the 'reopen URL' from "" to "http:// ".
+			Limited reopening the MOTD to once every 3 seconds.
+		( Other games are unaffected by this update )
+	1.12.22 <-> 2013 10/5 - Caelan Borowiec
 		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
 			Custom/edited copies of motd_text.txt will not be touched
-	1.12.22 b2 <-> 2013 7/31 - Caelan Borowiec
-		Removed the sm_motdredirect_immunity_enable cvar which will be replaced with a web panel setting
-	1.12.22 b1 <-> 2013 7/28 - Caelan Borowiec
-		Immunity is no longer handled locally, but is instead reported to the backend for handling
+		Made the ad URL shorter by reducing the length of varible names.
 	1.12.21 <-> 2013 7/23 - Caelan Borowiec
 		Fixed a case where delay times from the backend would be cached after the first connection
 	1.12.20 <-> 2013 7/18 - Caelan Borowiec
@@ -215,7 +214,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.23"
+#define PLUGIN_VERSION "1.12.24a"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -268,6 +267,7 @@ new EGame:g_Game = kGameUnsupported;
 new Handle:g_ConVar_URL;
 new Handle:g_ConVarReView;
 new Handle:g_ConVarReViewTime;
+new Handle:g_ConVarImmunityEnabled;
 new Handle:g_ConVarTF2EventOption;
 
 // Globals required/used by dynamic delay code
@@ -277,6 +277,8 @@ new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
 
+// TF2 MotD reopening code
+new Float:g_fLastMOTDLoad[MAXPLAYERS +1] = 0.0;
 
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
@@ -447,6 +449,7 @@ public OnPluginStart()
 	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
 	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
+	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -650,7 +653,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 			PrintToConsole(client, "javascript:windowClosed() sent to client.");
 			#endif
 		}
-		else
+		else if (g_Game != kGameTF2)
 		{
 			#if defined SHOW_CONSOLE_MESSAGES
 			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
@@ -868,7 +871,10 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	new bool:bClientHasImmunity = CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION);
+	new bool:bClientHasImmunity = false;
+	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
+		bClientHasImmunity = true;
+	
 	if (bClientHasImmunity && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
 		return Plugin_Stop; //Cancel re-view ads
 	
@@ -905,7 +911,6 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
 		
-		
 		decl String:szURL[128];
 		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
 		if (bClientHasImmunity)
@@ -930,10 +935,11 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	CloseHandle(kv);
 	
 
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D); //&& !bClientHasImmunity);
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
+		g_fLastMOTDLoad[client] = GetGameTime();
 		CreateDataTimer(0.25, Timer_Restrict, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 		WritePackCell(data, GetClientSerial(client));
 		WritePackFloat(data, GetGameTime());
@@ -972,13 +978,14 @@ public bool:IsClientInForcedCooldown(client)
 		return false; // Backend has responded
 	}
 	
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
+	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (!bUseCooldown)
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Cooldown does not apply in this game");
+		PrintToConsole(client, "Cooldown does not apply to this client");
 		#endif
-		return false;	//Cooldown does not apply here
+		return false;	//Cooldown does not apply to this target
 	}
 	
 	if (g_fPlayerCooldownStartedAt[client] != 0)
@@ -1113,11 +1120,30 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
+		if (g_Game == kGameTF2)
+		{
+			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
+			{
+				new Handle:kv = CreateKeyValues("data");
+				new String:url[] = "http:// ";
+				KvSetString(kv, "title", MOTD_TITLE);
+				KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
+				KvSetString(kv, "msg", url);
+				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
+				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
+				CloseHandle(kv);
+				
+				g_fLastMOTDLoad[client] = GetGameTime();
+			}
+		}
+		else
+			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+	
 		if (g_iDynamicDisplayTime[client] > 0)
 			PrintCenterText(client, "You may continue in %d seconds.", timeleft);
 		else
 			PrintCenterText(client, "Loading...");
-		ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		
 		return Plugin_Continue;
 	}
 	
