@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.24b <-> 2013 11/24 - Caelan Borowiec
+		Fixed the team selection menu not appearing after closing the MOTD in Nuclear Dawn
 	1.12.24a <-> 2013 11/22 - Caelan Borowiec
 		Fixes for TF2 MOTD Changes:
 			Fixes/changes the method used to reopen the MOTD.
@@ -214,7 +216,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.24a"
+#define PLUGIN_VERSION "1.12.24b"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -850,9 +852,9 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSS, kGameND:
+				case kGameCSS:
 					FakeClientCommand(client, "joingame");
-				case kGameDODS:
+				case kGameDODS, kGameND:
 					ClientCommand(client, "changeteam");
 			}
 		}
