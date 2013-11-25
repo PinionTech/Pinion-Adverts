@@ -32,7 +32,7 @@ Changelog
 	1.12.22 <-> 2013 10/5 - Caelan Borowiec
 		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
 			Custom/edited copies of motd_text.txt will not be touched
-		Made the ad URL shorter by reducing the length of varible names.
+		Made the ad URL shorter by reducing the length of variable names.
 	1.12.21 <-> 2013 7/23 - Caelan Borowiec
 		Fixed a case where delay times from the backend would be cached after the first connection
 	1.12.20 <-> 2013 7/18 - Caelan Borowiec
@@ -56,7 +56,7 @@ Changelog
 		Disabled debug mode
 	1.12.16 <-> 2013 4/25 - Caelan Borowiec
 		Fixed an issue with the plugin loading a blank motd window
-		Made SteamTools the prefered extension for queries
+		Made SteamTools the preferred extension for queries
 		Replaced cURL/Socket code with a wrapper for EasyHTTP.inc
 			- (Plugin now requires EasyHTTP.inc to compile)
 		Added a countermeasure to prevent players from blocking the closed_htmlpage command
@@ -74,7 +74,7 @@ Changelog
 	1.12.13 <-> 2013 1/20 - Caelan Borowiec
 		Patched a possible memory leak
 		Improved player immunity handling
-		Added immunity for inital connection advert's delay timer
+		Added immunity for initial connection advert's delay timer
 	1.12.12 <-> 2012 12/12 - Caelan Borowiec
 		Version bump
 	1.8.2-pre-12 <-> 2012 12/7 - Caelan Borowiec
@@ -95,7 +95,7 @@ Changelog
 		Added a check to prevent errors in ClosePage()
 		Added checks to prevent errors when calling GetClientAuthString
 	1.8.2-pre-7 <-> 2012 11/16 - Caelan Borowiec
-		Changed event used for TF2 round-start adverts so that ads are displayed eariler.
+		Changed event used for TF2 round-start adverts so that ads are displayed earlier.
 		Renamed ConVar sm_advertisement_immunity_enable to sm_motdredirect_immunity_enable to be consistent with other cvar names.
 		Made advertisement time restrictions apply to ads shown after L4D1/L4D2 map stage transitions.
 		Updated sm_motdredirect_url checking code to prevent false-positives from being logged.
@@ -105,7 +105,7 @@ Changelog
 		Fixed adverts not working for Left 4 Dead 1 map stage transitions
 		Revised plugin versioning scheme
 	1.8.2-pre-5 <-> 2012 11/13 - Caelan Borowiec
-		Disabled minimun display time feature in L4D and L4D2
+		Disabled minimum display time feature in L4D and L4D2
 	1.8.2-pre-4 <-> 2012 11/13 - Caelan Borowiec
 		Moved round-end advertisements to now show during setup time at the start of the round.
 	1.8.2-pre-3 <-> 2012 11/11 - Caelan Borowiec
@@ -143,22 +143,22 @@ Changelog
 	1.6 <-> 2012 - 8/1 Mana (unreleased)
 		Added a cooldown option for skipping the MOTD.
 		Defaults to 5 seconds of not being able to "close" the MOTD.
-		Added a code option of only hooking the first MOTD, incase it conflicts with other plugins
+		Added a code option of only hooking the first MOTD, in case it conflicts with other plugins
 	1.5.1 <-> 2012 - 5/24 Sam Gentle
 		Made the MOTD hit use a javascript: url
 	1.5 <-> 2012 - 5/24 Mana
-		Removed event hooks, no longer neccesary
+		Removed event hooks, no longer necessary
 		Blocks current MOTD and replaces it a new
 		Hooks MOTD closed button
 		Plugin now works immediately after being loaded
-		Left legacy code for writing MOTD to file (incase updates break sourcemod)
+		Left legacy code for writing MOTD to file (in case updates break sourcemod)
 	1.4.2 <-> 2012 - 20/02 Azelphur
 		Stop adverts when players join the spectator team
 	1.4.1 <-> 2011 - 08/09 LumiStanc
 		Add version CVA
-	1.4 <-> 2011 - 08/05 David Banha
+	1.4 <-> 2011 - 08/05 David Banham
 		Integrated code to update motd.txt config file
-		Changed variable names as appropriat
+		Changed variable names as appropriate
 		Changed config file name
 	1.3 <-> 2011 - 07/24 LumiStance
 		Add host ip and port to url, add auth_id
