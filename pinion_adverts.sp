@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.24c <-> 2013 11/25 - Caelan Borowiec
+		Disabled SteamTools use in CSGO to prevent errors
 	1.12.24b <-> 2013 11/24 - Caelan Borowiec
 		Fixed the team selection menu not appearing after closing the MOTD in Nuclear Dawn
 	1.12.24a <-> 2013 11/22 - Caelan Borowiec
@@ -216,7 +218,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.24b"
+#define PLUGIN_VERSION "1.12.24c"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -437,6 +439,10 @@ public OnPluginStart()
 			cURL - http://forums.alliedmods.net/showthread.php?t=152216\n\
 			SteamTools - http://forums.alliedmods.net/showthread.php?t=129763\n\
 			Socket - http://forums.alliedmods.net/showthread.php?t=67640");
+			
+	// Disable SteamTools on CSGO since it's not supported:
+	if (g_Game == kGameCSGO)
+		g_bSteamTools = false;
 
 	// Catch the MOTD
 	new UserMsg:VGUIMenu = GetUserMessageId("VGUIMenu");
