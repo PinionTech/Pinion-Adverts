@@ -21,6 +21,8 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	1.12.24d <-> 2013 12/4 - Caelan Borowiec
+		Added support for No More Room Left in Hell
 	1.12.24c <-> 2013 11/25 - Caelan Borowiec
 		Disabled SteamTools use in CSGO to prevent errors
 	1.12.24b <-> 2013 11/24 - Caelan Borowiec
@@ -218,7 +220,7 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.24c"
+#define PLUGIN_VERSION "1.12.24d"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -254,6 +256,7 @@ enum EGame
 	kGameL4D2,
 	kGameND,
 	kGameCSGO,
+	kGameNMRIH,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -263,7 +266,8 @@ new const String:g_SupportedGames[EGame][] = {
 	"left4dead",
 	"left4dead2",
 	"nucleardawn",
-	"csgo"
+	"csgo",
+	"nmrih"
 };
 new EGame:g_Game = kGameUnsupported;
 
@@ -643,6 +647,21 @@ public OnClientConnected(client)
 	g_bPlayerActivated[client] = false;
 }
 
+public OnClientPostAdminCheck(client)
+{
+	if (g_Game == kGameNMRIH)
+	{
+		if (IsFakeClient(client) || (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
+			return;
+		
+		new Handle:pack = CreateDataPack();
+		WritePackCell(pack, GetClientSerial(client));
+		WritePackCell(pack, AD_TRIGGER_CONNECT);
+		CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+		
+		return;
+	}
+}
 
 public Action:Event_DoPageHit(Handle:timer, any:serial)
 {
