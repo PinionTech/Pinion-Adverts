@@ -21,15 +21,20 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 
 Changelog
+	
+	1.12.26 <-> 2013 12/16 - Caelan Borowiec
+		Disabled TF2 MOTD reopening feature
+	1.12.25 <-> 2013 12/15 - Arthur Stelmach
+		Temporary revision
 	1.12.24 <-> 2013 12/5 - Caelan Borowiec
-	Added support for No More Room Left in Hell
-	Disabled SteamTools use in CSGO to prevent errors
-	Fixed the team selection menu not appearing after closing the MOTD in Nuclear Dawn
-	Fixes for TF2 MOTD Changes:
+		Added support for No More Room Left in Hell
+		Disabled SteamTools use in CSGO to prevent errors
+		Fixed the team selection menu not appearing after closing the MOTD in Nuclear Dawn
+		Fixes for TF2 MOTD Changes:
 			Fixes/changes the method used to reopen the MOTD.
 			Changes the 'reopen URL' from "" to "http:// ".
 			Limited reopening the MOTD to once every 3 seconds.
-		    Other games are unaffected by this update
+			Other games are unaffected by these fixes for TF2
 	1.12.22 <-> 2013 10/5 - Caelan Borowiec
 		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
 			Custom/edited copies of motd_text.txt will not be touched
@@ -1146,6 +1151,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	{
 		if (g_Game == kGameTF2)
 		{
+			/*
 			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
 			{
 				new Handle:kv = CreateKeyValues("data");
@@ -1159,6 +1165,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 				
 				g_fLastMOTDLoad[client] = GetGameTime();
 			}
+			*/
 		}
 		else
 			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
