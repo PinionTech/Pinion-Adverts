@@ -19,9 +19,14 @@ Files:
 Configuration Variables: See pinion_adverts.cfg.
 
 ------------------------------------------------------------------------------------------------------------------------------------
+*/
 
+#define PLUGIN_VERSION "1.12.27"
+/*
 Changelog
 	
+	1.12.27 <-> 2014 1/14 - Caelan Borowiec
+		Fixed audio continuing to play in No More Room in Hell after the ad is closed.
 	1.12.26 <-> 2013 12/16 - Caelan Borowiec
 		Disabled TF2 MOTD reopening feature
 	1.12.25 <-> 2013 12/15 - Arthur Stelmach
@@ -222,7 +227,6 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.26"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -672,26 +676,11 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	if (client && !IsFakeClient(client))
 	{
 		if (g_Game == kGameCSGO)
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
-			#endif
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-			FakeClientCommand(client, "joingame");
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "javascript:windowClosed() sent to client.");
-			#endif
-		}
+		else if (g_Game == kGameNMRIH)
+			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
-			#endif
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "javascript:windowClosed() sent to client.");
-			#endif
-		}
 	}
 }
 
@@ -879,7 +868,7 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSS:
+				case kGameCSS, kGameCSGO:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
 					ClientCommand(client, "changeteam");
@@ -1035,6 +1024,7 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
+	CloseHandle(pack);
 	
 	if (!client)
 		return;
@@ -1214,6 +1204,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameHL2DM
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
+		|| g_Game == kGameNMRIH
 		;
 }
 
