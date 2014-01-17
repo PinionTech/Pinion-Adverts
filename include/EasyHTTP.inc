@@ -323,7 +323,8 @@ public EasyHTTP_SteamToolsComplete(HTTPRequestHandle:request, bool:successful, H
 		
 	if(m_szPath[0] == 0)
 	{
-		Steam_GetHTTPResponseBodyData(request, m_szBuffer, m_iLength+1);
+		Steam_GetHTTPResponseBodyData(request, m_szBuffer, m_iLength);
+		m_szBuffer[m_iLength] = 0;
 	}
 	else
 		Steam_WriteHTTPResponseBody(request, m_szPath);

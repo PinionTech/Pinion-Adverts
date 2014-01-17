@@ -21,10 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.27"
+#define PLUGIN_VERSION "1.12.27b"
 /*
 Changelog
 	
+	1.12.27b <-> 2014 1/17 - Caelan Borowiec
+		Removed unnecessary CloseHandle
+		Possibly fixed handle leak in EasyHTTP
 	1.12.27 <-> 2014 1/14 - Caelan Borowiec
 		Fixed audio continuing to play in No More Room in Hell after the ad is closed.
 	1.12.26 <-> 2013 12/16 - Caelan Borowiec
@@ -1024,7 +1027,6 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
-	CloseHandle(pack);
 	
 	if (!client)
 		return;
