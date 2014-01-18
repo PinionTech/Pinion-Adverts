@@ -21,11 +21,11 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.27b"
+#define PLUGIN_VERSION "1.12.28"
 /*
 Changelog
 	
-	1.12.27b <-> 2014 1/17 - Caelan Borowiec
+	1.12.28 <-> 2014 1/17 - Caelan Borowiec
 		Removed unnecessary CloseHandle
 		Possibly fixed handle leak in EasyHTTP
 	1.12.27 <-> 2014 1/14 - Caelan Borowiec
