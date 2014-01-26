@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.28"
+#define PLUGIN_VERSION "1.12.29"
 /*
 Changelog
-	
+
+	1.12.29 <-> 2014 1/25 - Caelan Borowiec
+		Enabled forced duration in TF2 again
 	1.12.28 <-> 2014 1/17 - Caelan Borowiec
 		Removed unnecessary CloseHandle
 		Possibly fixed handle leak in EasyHTTP
@@ -1143,8 +1145,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	{
 		if (g_Game == kGameTF2)
 		{
-			/*
-			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
+			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 1.0)
 			{
 				new Handle:kv = CreateKeyValues("data");
 				new String:url[] = "http:// ";
@@ -1157,7 +1158,6 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 				
 				g_fLastMOTDLoad[client] = GetGameTime();
 			}
-			*/
 		}
 		else
 			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
