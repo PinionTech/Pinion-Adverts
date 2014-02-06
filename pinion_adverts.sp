@@ -19,20 +19,32 @@ Files:
 Configuration Variables: See pinion_adverts.cfg.
 
 ------------------------------------------------------------------------------------------------------------------------------------
+*/
 
+#define PLUGIN_VERSION "1.12.29"
+/*
 Changelog
-	1.12.24d <-> 2013 12/4 - Caelan Borowiec
+
+	1.12.29 <-> 2014 1/25 - Caelan Borowiec
+		Enabled forced duration in TF2 again
+	1.12.28 <-> 2014 1/17 - Caelan Borowiec
+		Removed unnecessary CloseHandle
+		Possibly fixed handle leak in EasyHTTP
+	1.12.27 <-> 2014 1/14 - Caelan Borowiec
+		Fixed audio continuing to play in No More Room in Hell after the ad is closed.
+	1.12.26 <-> 2013 12/16 - Caelan Borowiec
+		Disabled TF2 MOTD reopening feature
+	1.12.25 <-> 2013 12/15 - Arthur Stelmach
+		Temporary revision
+	1.12.24 <-> 2013 12/5 - Caelan Borowiec
 		Added support for No More Room Left in Hell
-	1.12.24c <-> 2013 11/25 - Caelan Borowiec
 		Disabled SteamTools use in CSGO to prevent errors
-	1.12.24b <-> 2013 11/24 - Caelan Borowiec
 		Fixed the team selection menu not appearing after closing the MOTD in Nuclear Dawn
-	1.12.24a <-> 2013 11/22 - Caelan Borowiec
 		Fixes for TF2 MOTD Changes:
 			Fixes/changes the method used to reopen the MOTD.
 			Changes the 'reopen URL' from "" to "http:// ".
 			Limited reopening the MOTD to once every 3 seconds.
-		( Other games are unaffected by this update )
+			Other games are unaffected by these fixes for TF2
 	1.12.22 <-> 2013 10/5 - Caelan Borowiec
 		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
 			Custom/edited copies of motd_text.txt will not be touched
@@ -220,7 +232,6 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.24d"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -670,26 +681,11 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	if (client && !IsFakeClient(client))
 	{
 		if (g_Game == kGameCSGO)
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
-			#endif
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-			FakeClientCommand(client, "joingame");
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "javascript:windowClosed() sent to client.");
-			#endif
-		}
+		else if (g_Game == kGameNMRIH)
+			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
-			#endif
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "javascript:windowClosed() sent to client.");
-			#endif
-		}
 	}
 }
 
@@ -877,7 +873,7 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSS:
+				case kGameCSS, kGameCSGO:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
 					ClientCommand(client, "changeteam");
@@ -1149,7 +1145,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	{
 		if (g_Game == kGameTF2)
 		{
-			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
+			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 1.0)
 			{
 				new Handle:kv = CreateKeyValues("data");
 				new String:url[] = "http:// ";
@@ -1210,6 +1206,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameHL2DM
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
+		|| g_Game == kGameNMRIH
 		;
 }
 
