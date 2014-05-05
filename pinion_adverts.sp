@@ -21,10 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.28"
+#define PLUGIN_VERSION "1.12.29"
 /*
 Changelog
 	
+	1.12.29 <-> 2014 5/5 - Caelan Borowiec
+		Replaced json.inc with EasyJSON.inc
+		Fixed handle leak that was being caused json.inc
 	1.12.28 <-> 2014 1/17 - Caelan Borowiec
 		Removed unnecessary CloseHandle
 		Possibly fixed handle leak in EasyHTTP
@@ -200,7 +203,7 @@ Changelog
 #define REQUIRE_PLUGIN
 #define STRING(%1) %1, sizeof(%1)
 #include <EasyHTTP>
-#include <json>
+#include <EasyJSON>
 
 #pragma semicolon 1
 
@@ -1267,10 +1270,10 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		return;
 	}
 	
-	new JSON:hJson = json_decode(sQueryData); 
+	new Handle:hJson = DecodeJSON(sQueryData); 
 	new queryResult = -1;
 	
-	if (hJson != JSON_INVALID && json_get_cell(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
+	if (hJson != INVALID_HANDLE && JSONGetInteger(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Query finished, backend returned delay of %i", queryResult);
@@ -1278,6 +1281,7 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		//Update the delay timer
 		g_iDynamicDisplayTime[client] = queryResult;
 		g_bIsQueryRunning[client] = false;
+		DestroyJSON(hJson);
 		return;
 	}
 	//else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
@@ -1288,6 +1292,8 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		#endif
 		g_iNumQueryAttempts[client] = 1;
 		g_bIsQueryRunning[client] = false;
+		if (hJson != INVALID_HANDLE)
+			DestroyJSON(hJson);
 		return;
 	}
 	else
@@ -1295,7 +1301,8 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Query failed: Retrying...", sQueryData);
 		#endif
-		
+		if (hJson != INVALID_HANDLE)
+			DestroyJSON(hJson);
 		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		return;
 	}
