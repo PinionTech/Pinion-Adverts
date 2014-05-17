@@ -21,10 +21,15 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.29b"
+#define PLUGIN_VERSION "1.12.30a"
 /*
 Changelog
 	
+	1.12.30a <-> 2014 5/17 - Caelan Borowiec
+		Added support for Fistful of Frags
+	1.12.29 <-> 2014 5/5 - Caelan Borowiec
+		Replaced json.inc with EasyJSON.inc
+		Fixed handle leak that was being caused json.inc
 	1.12.28 <-> 2014 1/17 - Caelan Borowiec
 		Removed unnecessary CloseHandle
 		Possibly fixed handle leak in EasyHTTP
@@ -266,6 +271,7 @@ enum EGame
 	kGameND,
 	kGameCSGO,
 	kGameNMRIH,
+	kGameFoF,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -276,7 +282,8 @@ new const String:g_SupportedGames[EGame][] = {
 	"left4dead2",
 	"nucleardawn",
 	"csgo",
-	"nmrih"
+	"nmrih",
+	"fof"
 };
 new EGame:g_Game = kGameUnsupported;
 
@@ -1159,6 +1166,22 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 			}
 			*/
 		}
+		else if (g_Game == kGameFoF)
+		{
+			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 1.0)
+			{
+				new Handle:kv = CreateKeyValues("data");
+				new String:url[] = "http://#";
+				KvSetString(kv, "title", MOTD_TITLE);
+				KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
+				KvSetString(kv, "msg", url);
+				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
+				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
+				CloseHandle(kv);
+				
+				g_fLastMOTDLoad[client] = GetGameTime();
+			}
+		}
 		else
 			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	
@@ -1207,6 +1230,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
 		|| g_Game == kGameNMRIH
+		|| g_Game == kGameFoF
 		;
 }
 
