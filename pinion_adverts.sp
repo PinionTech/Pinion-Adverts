@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.30a"
+#define PLUGIN_VERSION "1.12.30b"
 /*
 Changelog
 	
+	1.12.30a/b <-> 2014 12/14 - Caelan Borowiec
+		Added support for Zombie Panic! Source
 	1.12.30a <-> 2014 5/17 - Caelan Borowiec
 		Added support for Fistful of Frags
 	1.12.29 <-> 2014 5/5 - Caelan Borowiec
@@ -272,6 +274,7 @@ enum EGame
 	kGameCSGO,
 	kGameNMRIH,
 	kGameFoF,
+	kGameZPS,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -283,7 +286,8 @@ new const String:g_SupportedGames[EGame][] = {
 	"nucleardawn",
 	"csgo",
 	"nmrih",
-	"fof"
+	"fof",
+	"zps"
 };
 new EGame:g_Game = kGameUnsupported;
 
@@ -665,7 +669,7 @@ public OnClientConnected(client)
 
 public OnClientPostAdminCheck(client)
 {
-	if (g_Game == kGameNMRIH)
+	if (g_Game == kGameNMRIH || g_Game == kGameZPS)
 	{
 		if (IsFakeClient(client) || (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
 			return;
@@ -687,7 +691,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	{
 		if (g_Game == kGameCSGO)
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-		else if (g_Game == kGameNMRIH)
+		else if (g_Game == kGameNMRIH || g_Game == kGameZPS)
 			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
@@ -1231,6 +1235,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameCSGO
 		|| g_Game == kGameNMRIH
 		|| g_Game == kGameFoF
+		|| g_Game == kGameZPS
 		;
 }
 
