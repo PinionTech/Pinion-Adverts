@@ -21,11 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.30b"
+#define PLUGIN_VERSION "1.12.30c"
 /*
 Changelog
 	
-	1.12.30a/b <-> 2014 12/14 - Caelan Borowiec
+	1.12.30c <-> 2014 12/15 - Caelan Borowiec
+		Added support for Double Action: Boogaloo
+	1.12.30b <-> 2014 12/14 - Caelan Borowiec
 		Added support for Zombie Panic! Source
 	1.12.30a <-> 2014 5/17 - Caelan Borowiec
 		Added support for Fistful of Frags
@@ -275,6 +277,7 @@ enum EGame
 	kGameNMRIH,
 	kGameFoF,
 	kGameZPS,
+	kGameDAB,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -287,7 +290,8 @@ new const String:g_SupportedGames[EGame][] = {
 	"csgo",
 	"nmrih",
 	"fof",
-	"zps"
+	"zps",
+	"dab"
 };
 new EGame:g_Game = kGameUnsupported;
 
@@ -691,7 +695,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	{
 		if (g_Game == kGameCSGO)
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-		else if (g_Game == kGameNMRIH || g_Game == kGameZPS)
+		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB)
 			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
@@ -1236,6 +1240,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameNMRIH
 		|| g_Game == kGameFoF
 		|| g_Game == kGameZPS
+		|| g_Game == kGameDAB
 		;
 }
 
