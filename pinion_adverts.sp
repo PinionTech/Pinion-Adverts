@@ -21,10 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.30c"
+#define PLUGIN_VERSION "1.12.30d"
 /*
 Changelog
 	
+	1.12.30d <-> 2015 1/4 - Caelan Borowiec
+		Added support for GoldenEye: Source
+		Added support for Hidden: Source
 	1.12.30c <-> 2014 12/15 - Caelan Borowiec
 		Added support for Double Action: Boogaloo
 	1.12.30b <-> 2014 12/14 - Caelan Borowiec
@@ -278,6 +281,8 @@ enum EGame
 	kGameFoF,
 	kGameZPS,
 	kGameDAB,
+	kGameGES,
+	kGameHidden,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -291,7 +296,9 @@ new const String:g_SupportedGames[EGame][] = {
 	"nmrih",
 	"fof",
 	"zps",
-	"dab"
+	"dab",
+	"gesource",
+	"hidden"
 };
 new EGame:g_Game = kGameUnsupported;
 
@@ -673,7 +680,7 @@ public OnClientConnected(client)
 
 public OnClientPostAdminCheck(client)
 {
-	if (g_Game == kGameNMRIH || g_Game == kGameZPS)
+	if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
 	{
 		if (IsFakeClient(client) || (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
 			return;
@@ -695,7 +702,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	{
 		if (g_Game == kGameCSGO)
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB)
+		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
 			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
@@ -896,6 +903,7 @@ public Action:PageClosed(client, const String:command[], argc)
 	
 	return Plugin_Handled;
 }
+
 
 public Action:LoadPage(Handle:timer, Handle:pack)
 {
