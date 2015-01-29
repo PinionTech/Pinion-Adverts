@@ -21,10 +21,14 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.30d"
+#define PLUGIN_VERSION "1.12.30e"
 /*
 Changelog
 	
+	1.12.30e <-> 2015 1/29 - Caelan Borowiec
+		Merged sm_motdredirect_review and sm_motdredirect_tf2_review_event cvars
+		Added review support for all games
+		Added 'player death' option to review
 	1.12.30d <-> 2015 1/4 - Caelan Borowiec
 		Added support for GoldenEye: Source
 		Added support for Hidden: Source
@@ -263,7 +267,7 @@ public Plugin:myinfo =
 
 #define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts/updatefile.txt"
 
-#define IsReViewEnabled() GetConVarBool(g_ConVarReView)
+#define IsReViewEnabled() GetConVarBool(g_ConVarReviewOption)
 
 // Game detection
 enum EGame
@@ -304,10 +308,9 @@ new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
 new Handle:g_ConVar_URL;
-new Handle:g_ConVarReView;
+new Handle:g_ConVarReviewOption;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
-new Handle:g_ConVarTF2EventOption;
 
 // Globals required/used by dynamic delay code
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
@@ -489,9 +492,8 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
-	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
-	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
+	g_ConVarReviewOption = CreateConVar("sm_motdredirect_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
+	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 1.0);
 	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
@@ -658,7 +660,8 @@ RefreshCvarCache()
 
 SetupReView()
 {
-	// only support on TF2 while testing
+	g_hPlayerLastViewedAd = CreateTrie();
+	
 	if (g_Game == kGameTF2)
 	{
 		HookEvent("teamplay_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
@@ -667,9 +670,24 @@ SetupReView()
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
-		g_hPlayerLastViewedAd = CreateTrie();
 		HookEvent("player_transitioned", Event_PlayerTransitioned);
 	}
+	else if (g_Game == kGameDODS)
+	{
+		HookEvent("dod_round_win", Event_HandleReview, EventHookMode_PostNoCopy);
+		HookEvent("dod_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
+	}
+	else if (g_Game == kGameHidden)
+	{
+		HookEvent("game_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
+		HookEvent("game_round_end", Event_HandleReview, EventHookMode_PostNoCopy);
+	}
+	
+	HookEventEx("round_start", Event_HandleReview, EventHookMode_PostNoCopy);
+	HookEventEx("round_win", Event_HandleReview, EventHookMode_PostNoCopy);
+	HookEventEx("round_end", Event_HandleReview, EventHookMode_PostNoCopy);
+	
+	HookEventEx("player_death", Event_PlayerDeath);
 }
 
 public OnClientConnected(client)
@@ -743,10 +761,15 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if (!IsReViewEnabled())
 		return;
-		
-	new iEventChoice = GetConVarInt(g_ConVarTF2EventOption);
-	if ((StrEqual(name, "teamplay_round_start", false) && iEventChoice != 1) || ((StrEqual(name, "teamplay_win_panel", false) || StrEqual(name, "arena_win_panel", false)) && iEventChoice != 2))
+	
+	new iEventChoice = GetConVarInt(g_ConVarReviewOption);
+	if	(
+		( (StrEqual(name, "teamplay_round_start", false) || StrEqual(name, "dod_round_start", false)  || StrEqual(name, "round_start", false)   || StrEqual(name, "game_round_start", false) ) && iEventChoice != 1) || 
+		( (StrEqual(name, "teamplay_win_panel", false) || StrEqual(name, "arena_win_panel", false) || StrEqual(name, "dod_round_win", false) || StrEqual(name, "round_win", false) || StrEqual(name, "round_end", false)  || StrEqual(name, "game_round_end", false) ) && iEventChoice != 2)
+		)
+	{
 		return;
+	}
 	
 	if (g_iLastAdWave == -1) // Time counter has been reset or has not started.  Start it now.
 	{
@@ -774,12 +797,9 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 
 public OnClientAuthorized(client, const String:SteamID[])
 {
-	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
-	{
-		new n;
-		if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, n))
-			SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
-	}
+	new n;
+	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, n))
+		SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
 //Event_PlayerDisconnected will only be called for true disconnects
@@ -788,16 +808,48 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || !IsClientAuthorized(client))
 		return;
-	
-	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
-	{
-		decl String:SteamID[32];
-		GetClientAuthString(client, SteamID, sizeof(SteamID));
-		RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
-	}
+
+	decl String:SteamID[32];
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+
 	g_fPlayerCooldownStartedAt[client] = 0.0;
 	g_bIsQueryRunning[client] = false;
 	g_iDynamicDisplayTime[client] = 0;
+}
+
+
+public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{	
+	if (GetConVarInt(g_ConVarReviewOption) != 3)
+		return;
+		
+	new now = GetTime();
+	new iReViewTime = GetReViewTime();
+	
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || IsFakeClient(client) || !IsClientInGame(client))
+		return;
+	
+	decl String:SteamID[32];
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	
+	new iLastAdView;
+	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, iLastAdView))
+	{
+		SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
+		return;
+	}
+	
+	if ((now - iLastAdView) < iReViewTime)
+		return;
+
+	ChangeState(client, kAwaitingAd);
+	new Handle:pack = CreateDataPack();
+	WritePackCell(pack, GetClientSerial(client));
+	WritePackCell(pack, AD_TRIGGER_PLAYER_TRANSITION);
+	CreateTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
 // Called when a player regains control of a character (after a map-stage load)
@@ -1056,7 +1108,7 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 	
 	if (GetState(client) == kAdClosing || GetState(client) == kViewingAd)	//Ad is loaded
 	{
-		if (GetClientTeam(client) != 0) // player has joined a team
+		if (GetClientTeam(client) != 0 || g_Game == kGameNMRIH) // player has joined a team
 			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else // Player still needs the menu open
 			ShowMOTDPanelEx(client, MOTD_TITLE, "http://Pinion.gg", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
