@@ -493,7 +493,7 @@ public OnPluginStart()
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
 	g_ConVarReviewOption = CreateConVar("sm_motdredirect_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
-	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 1.0);
+	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 15.0);
 	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
