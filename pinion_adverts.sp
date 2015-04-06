@@ -21,22 +21,18 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.30e"
+#define PLUGIN_VERSION "1.12.30"
 /*
 Changelog
 	
-	1.12.30e <-> 2015 1/29 - Caelan Borowiec
+	1.12.30 <-> 2015 1/29 - Caelan Borowiec
 		Merged sm_motdredirect_review and sm_motdredirect_tf2_review_event cvars
 		Added review support for all games
 		Added 'player death' option to review
-	1.12.30d <-> 2015 1/4 - Caelan Borowiec
 		Added support for GoldenEye: Source
 		Added support for Hidden: Source
-	1.12.30c <-> 2014 12/15 - Caelan Borowiec
 		Added support for Double Action: Boogaloo
-	1.12.30b <-> 2014 12/14 - Caelan Borowiec
 		Added support for Zombie Panic! Source
-	1.12.30a <-> 2014 5/17 - Caelan Borowiec
 		Added support for Fistful of Frags
 	1.12.29 <-> 2014 5/5 - Caelan Borowiec
 		Replaced json.inc with EasyJSON.inc
