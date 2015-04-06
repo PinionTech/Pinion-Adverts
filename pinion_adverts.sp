@@ -21,7 +21,7 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.30"
+#define PLUGIN_VERSION "1.12.30ex"
 /*
 Changelog
 	
@@ -1212,25 +1212,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
-		if (g_Game == kGameTF2)
-		{
-			/*
-			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
-			{
-				new Handle:kv = CreateKeyValues("data");
-				new String:url[] = "http:// ";
-				KvSetString(kv, "title", MOTD_TITLE);
-				KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
-				KvSetString(kv, "msg", url);
-				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
-				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
-				CloseHandle(kv);
-				
-				g_fLastMOTDLoad[client] = GetGameTime();
-			}
-			*/
-		}
-		else if (g_Game == kGameFoF)
+		if (g_Game == kGameFoF || g_Game == kGameTF2)
 		{
 			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 1.0)
 			{
