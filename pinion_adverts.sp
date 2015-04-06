@@ -19,19 +19,46 @@ Files:
 Configuration Variables: See pinion_adverts.cfg.
 
 ------------------------------------------------------------------------------------------------------------------------------------
+*/
 
+#define PLUGIN_VERSION "1.12.30"
+/*
 Changelog
-	1.12.23 <-> 2013 10/5 - Caelan Borowiec
-		Version bump to 1.12.23
-	1.12.22 b4 <-> 2013 8/12 - Caelan Borowiec
-		Made the ad URL shorter by reducing the length of variable names.
-	1.12.22 b3 <-> 2013 7/31 - Caelan Borowiec
+	
+	1.12.30 <-> 2015 1/29 - Caelan Borowiec
+		Merged sm_motdredirect_review and sm_motdredirect_tf2_review_event cvars
+		Added review support for all games
+		Added 'player death' option to review
+		Added support for GoldenEye: Source
+		Added support for Hidden: Source
+		Added support for Double Action: Boogaloo
+		Added support for Zombie Panic! Source
+		Added support for Fistful of Frags
+	1.12.29 <-> 2014 5/5 - Caelan Borowiec
+		Replaced json.inc with EasyJSON.inc
+		Fixed handle leak that was being caused json.inc
+	1.12.28 <-> 2014 1/17 - Caelan Borowiec
+		Removed unnecessary CloseHandle
+		Possibly fixed handle leak in EasyHTTP
+	1.12.27 <-> 2014 1/14 - Caelan Borowiec
+		Fixed audio continuing to play in No More Room in Hell after the ad is closed.
+	1.12.26 <-> 2013 12/16 - Caelan Borowiec
+		Disabled TF2 MOTD reopening feature
+	1.12.25 <-> 2013 12/15 - Arthur Stelmach
+		Temporary revision
+	1.12.24 <-> 2013 12/5 - Caelan Borowiec
+		Added support for No More Room Left in Hell
+		Disabled SteamTools use in CSGO to prevent errors
+		Fixed the team selection menu not appearing after closing the MOTD in Nuclear Dawn
+		Fixes for TF2 MOTD Changes:
+			Fixes/changes the method used to reopen the MOTD.
+			Changes the 'reopen URL' from "" to "http:// ".
+			Limited reopening the MOTD to once every 3 seconds.
+			Other games are unaffected by these fixes for TF2
+	1.12.22 <-> 2013 10/5 - Caelan Borowiec
 		The default motd_text.txt will now be backed up and replaced with a message telling players how to enable html MOTDs
 			Custom/edited copies of motd_text.txt will not be touched
-	1.12.22 b2 <-> 2013 7/31 - Caelan Borowiec
-		Removed the sm_motdredirect_immunity_enable cvar which will be replaced with a web panel setting
-	1.12.22 b1 <-> 2013 7/28 - Caelan Borowiec
-		Immunity is no longer handled locally, but is instead reported to the backend for handling
+		Made the ad URL shorter by reducing the length of variable names.
 	1.12.21 <-> 2013 7/23 - Caelan Borowiec
 		Fixed a case where delay times from the backend would be cached after the first connection
 	1.12.20 <-> 2013 7/18 - Caelan Borowiec
@@ -55,7 +82,7 @@ Changelog
 		Disabled debug mode
 	1.12.16 <-> 2013 4/25 - Caelan Borowiec
 		Fixed an issue with the plugin loading a blank motd window
-		Made SteamTools the prefered extension for queries
+		Made SteamTools the preferred extension for queries
 		Replaced cURL/Socket code with a wrapper for EasyHTTP.inc
 			- (Plugin now requires EasyHTTP.inc to compile)
 		Added a countermeasure to prevent players from blocking the closed_htmlpage command
@@ -73,7 +100,7 @@ Changelog
 	1.12.13 <-> 2013 1/20 - Caelan Borowiec
 		Patched a possible memory leak
 		Improved player immunity handling
-		Added immunity for inital connection advert's delay timer
+		Added immunity for initial connection advert's delay timer
 	1.12.12 <-> 2012 12/12 - Caelan Borowiec
 		Version bump
 	1.8.2-pre-12 <-> 2012 12/7 - Caelan Borowiec
@@ -94,7 +121,7 @@ Changelog
 		Added a check to prevent errors in ClosePage()
 		Added checks to prevent errors when calling GetClientAuthString
 	1.8.2-pre-7 <-> 2012 11/16 - Caelan Borowiec
-		Changed event used for TF2 round-start adverts so that ads are displayed eariler.
+		Changed event used for TF2 round-start adverts so that ads are displayed earlier.
 		Renamed ConVar sm_advertisement_immunity_enable to sm_motdredirect_immunity_enable to be consistent with other cvar names.
 		Made advertisement time restrictions apply to ads shown after L4D1/L4D2 map stage transitions.
 		Updated sm_motdredirect_url checking code to prevent false-positives from being logged.
@@ -104,7 +131,7 @@ Changelog
 		Fixed adverts not working for Left 4 Dead 1 map stage transitions
 		Revised plugin versioning scheme
 	1.8.2-pre-5 <-> 2012 11/13 - Caelan Borowiec
-		Disabled minimun display time feature in L4D and L4D2
+		Disabled minimum display time feature in L4D and L4D2
 	1.8.2-pre-4 <-> 2012 11/13 - Caelan Borowiec
 		Moved round-end advertisements to now show during setup time at the start of the round.
 	1.8.2-pre-3 <-> 2012 11/11 - Caelan Borowiec
@@ -142,22 +169,22 @@ Changelog
 	1.6 <-> 2012 - 8/1 Mana (unreleased)
 		Added a cooldown option for skipping the MOTD.
 		Defaults to 5 seconds of not being able to "close" the MOTD.
-		Added a code option of only hooking the first MOTD, incase it conflicts with other plugins
+		Added a code option of only hooking the first MOTD, in case it conflicts with other plugins
 	1.5.1 <-> 2012 - 5/24 Sam Gentle
 		Made the MOTD hit use a javascript: url
 	1.5 <-> 2012 - 5/24 Mana
-		Removed event hooks, no longer neccesary
+		Removed event hooks, no longer necessary
 		Blocks current MOTD and replaces it a new
 		Hooks MOTD closed button
 		Plugin now works immediately after being loaded
-		Left legacy code for writing MOTD to file (incase updates break sourcemod)
+		Left legacy code for writing MOTD to file (in case updates break sourcemod)
 	1.4.2 <-> 2012 - 20/02 Azelphur
 		Stop adverts when players join the spectator team
 	1.4.1 <-> 2011 - 08/09 LumiStanc
 		Add version CVA
-	1.4 <-> 2011 - 08/05 David Banha
+	1.4 <-> 2011 - 08/05 David Banham
 		Integrated code to update motd.txt config file
-		Changed variable names as appropriat
+		Changed variable names as appropriate
 		Changed config file name
 	1.3 <-> 2011 - 07/24 LumiStance
 		Add host ip and port to url, add auth_id
@@ -185,7 +212,7 @@ Changelog
 #define REQUIRE_PLUGIN
 #define STRING(%1) %1, sizeof(%1)
 #include <EasyHTTP>
-#include <json>
+#include <EasyJSON>
 
 #pragma semicolon 1
 
@@ -215,7 +242,6 @@ enum loadTigger
 };
 
 // Plugin definitions
-#define PLUGIN_VERSION "1.12.23"
 public Plugin:myinfo =
 {
 	name = "Pinion Adverts",
@@ -237,7 +263,7 @@ public Plugin:myinfo =
 
 #define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts/updatefile.txt"
 
-#define IsReViewEnabled() GetConVarBool(g_ConVarReView)
+#define IsReViewEnabled() GetConVarBool(g_ConVarReviewOption)
 
 // Game detection
 enum EGame
@@ -251,6 +277,12 @@ enum EGame
 	kGameL4D2,
 	kGameND,
 	kGameCSGO,
+	kGameNMRIH,
+	kGameFoF,
+	kGameZPS,
+	kGameDAB,
+	kGameGES,
+	kGameHidden,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -260,15 +292,21 @@ new const String:g_SupportedGames[EGame][] = {
 	"left4dead",
 	"left4dead2",
 	"nucleardawn",
-	"csgo"
+	"csgo",
+	"nmrih",
+	"fof",
+	"zps",
+	"dab",
+	"gesource",
+	"hidden"
 };
 new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
 new Handle:g_ConVar_URL;
-new Handle:g_ConVarReView;
+new Handle:g_ConVarReviewOption;
 new Handle:g_ConVarReViewTime;
-new Handle:g_ConVarTF2EventOption;
+new Handle:g_ConVarImmunityEnabled;
 
 // Globals required/used by dynamic delay code
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
@@ -277,6 +315,8 @@ new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
 
+// TF2 MotD reopening code
+new Float:g_fLastMOTDLoad[MAXPLAYERS +1] = 0.0;
 
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
@@ -433,6 +473,10 @@ public OnPluginStart()
 			cURL - http://forums.alliedmods.net/showthread.php?t=152216\n\
 			SteamTools - http://forums.alliedmods.net/showthread.php?t=129763\n\
 			Socket - http://forums.alliedmods.net/showthread.php?t=67640");
+			
+	// Disable SteamTools on CSGO since it's not supported:
+	if (g_Game == kGameCSGO)
+		g_bSteamTools = false;
 
 	// Catch the MOTD
 	new UserMsg:VGUIMenu = GetUserMessageId("VGUIMenu");
@@ -444,9 +488,9 @@ public OnPluginStart()
 	
 	// Specify console variables used to configure plugin
 	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarReView = CreateConVar("sm_motdredirect_review", "0", "Set clients to re-view ad next round if they have not seen it recently");
-	g_ConVarTF2EventOption = CreateConVar("sm_motdredirect_tf2_review_event", "1", "1: Ads show at start of round. 2: Ads show at end of round.'");
-	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "30", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 20.0);
+	g_ConVarReviewOption = CreateConVar("sm_motdredirect_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
+	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 15.0);
+	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -612,7 +656,8 @@ RefreshCvarCache()
 
 SetupReView()
 {
-	// only support on TF2 while testing
+	g_hPlayerLastViewedAd = CreateTrie();
+	
 	if (g_Game == kGameTF2)
 	{
 		HookEvent("teamplay_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
@@ -621,9 +666,24 @@ SetupReView()
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
-		g_hPlayerLastViewedAd = CreateTrie();
 		HookEvent("player_transitioned", Event_PlayerTransitioned);
 	}
+	else if (g_Game == kGameDODS)
+	{
+		HookEvent("dod_round_win", Event_HandleReview, EventHookMode_PostNoCopy);
+		HookEvent("dod_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
+	}
+	else if (g_Game == kGameHidden)
+	{
+		HookEvent("game_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
+		HookEvent("game_round_end", Event_HandleReview, EventHookMode_PostNoCopy);
+	}
+	
+	HookEventEx("round_start", Event_HandleReview, EventHookMode_PostNoCopy);
+	HookEventEx("round_win", Event_HandleReview, EventHookMode_PostNoCopy);
+	HookEventEx("round_end", Event_HandleReview, EventHookMode_PostNoCopy);
+	
+	HookEventEx("player_death", Event_PlayerDeath);
 }
 
 public OnClientConnected(client)
@@ -632,6 +692,21 @@ public OnClientConnected(client)
 	g_bPlayerActivated[client] = false;
 }
 
+public OnClientPostAdminCheck(client)
+{
+	if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
+	{
+		if (IsFakeClient(client) || (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
+			return;
+		
+		new Handle:pack = CreateDataPack();
+		WritePackCell(pack, GetClientSerial(client));
+		WritePackCell(pack, AD_TRIGGER_CONNECT);
+		CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+		
+		return;
+	}
+}
 
 public Action:Event_DoPageHit(Handle:timer, any:serial)
 {
@@ -640,26 +715,11 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	if (client && !IsFakeClient(client))
 	{
 		if (g_Game == kGameCSGO)
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
-			#endif
 			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-			FakeClientCommand(client, "joingame");
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "javascript:windowClosed() sent to client.");
-			#endif
-		}
-		else
-		{
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "Sending javascript:windowClosed() to client.");
-			#endif
+		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
+			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-			#if defined SHOW_CONSOLE_MESSAGES
-			PrintToConsole(client, "javascript:windowClosed() sent to client.");
-			#endif
-		}
 	}
 }
 
@@ -697,10 +757,15 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if (!IsReViewEnabled())
 		return;
-		
-	new iEventChoice = GetConVarInt(g_ConVarTF2EventOption);
-	if ((StrEqual(name, "teamplay_round_start", false) && iEventChoice != 1) || ((StrEqual(name, "teamplay_win_panel", false) || StrEqual(name, "arena_win_panel", false)) && iEventChoice != 2))
+	
+	new iEventChoice = GetConVarInt(g_ConVarReviewOption);
+	if	(
+		( (StrEqual(name, "teamplay_round_start", false) || StrEqual(name, "dod_round_start", false)  || StrEqual(name, "round_start", false)   || StrEqual(name, "game_round_start", false) ) && iEventChoice != 1) || 
+		( (StrEqual(name, "teamplay_win_panel", false) || StrEqual(name, "arena_win_panel", false) || StrEqual(name, "dod_round_win", false) || StrEqual(name, "round_win", false) || StrEqual(name, "round_end", false)  || StrEqual(name, "game_round_end", false) ) && iEventChoice != 2)
+		)
+	{
 		return;
+	}
 	
 	if (g_iLastAdWave == -1) // Time counter has been reset or has not started.  Start it now.
 	{
@@ -728,12 +793,9 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 
 public OnClientAuthorized(client, const String:SteamID[])
 {
-	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
-	{
-		new n;
-		if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, n))
-			SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
-	}
+	new n;
+	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, n))
+		SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
 //Event_PlayerDisconnected will only be called for true disconnects
@@ -742,16 +804,48 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || !IsClientAuthorized(client))
 		return;
-	
-	if (g_Game == kGameL4D2 || g_Game == kGameL4D)
-	{
-		decl String:SteamID[32];
-		GetClientAuthString(client, SteamID, sizeof(SteamID));
-		RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
-	}
+
+	decl String:SteamID[32];
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
+
 	g_fPlayerCooldownStartedAt[client] = 0.0;
 	g_bIsQueryRunning[client] = false;
 	g_iDynamicDisplayTime[client] = 0;
+}
+
+
+public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+{	
+	if (GetConVarInt(g_ConVarReviewOption) != 3)
+		return;
+		
+	new now = GetTime();
+	new iReViewTime = GetReViewTime();
+	
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || IsFakeClient(client) || !IsClientInGame(client))
+		return;
+	
+	decl String:SteamID[32];
+	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	
+	new iLastAdView;
+	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, iLastAdView))
+	{
+		SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
+		return;
+	}
+	
+	if ((now - iLastAdView) < iReViewTime)
+		return;
+
+	ChangeState(client, kAwaitingAd);
+	new Handle:pack = CreateDataPack();
+	WritePackCell(pack, GetClientSerial(client));
+	WritePackCell(pack, AD_TRIGGER_PLAYER_TRANSITION);
+	CreateTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
 // Called when a player regains control of a character (after a map-stage load)
@@ -847,9 +941,9 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSS, kGameND:
+				case kGameCSS, kGameCSGO:
 					FakeClientCommand(client, "joingame");
-				case kGameDODS:
+				case kGameDODS, kGameND:
 					ClientCommand(client, "changeteam");
 			}
 		}
@@ -857,6 +951,7 @@ public Action:PageClosed(client, const String:command[], argc)
 	
 	return Plugin_Handled;
 }
+
 
 public Action:LoadPage(Handle:timer, Handle:pack)
 {
@@ -868,7 +963,10 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
 	
-	new bool:bClientHasImmunity = CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION);
+	new bool:bClientHasImmunity = false;
+	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
+		bClientHasImmunity = true;
+	
 	if (bClientHasImmunity && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
 		return Plugin_Stop; //Cancel re-view ads
 	
@@ -905,7 +1003,6 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthString(client, szAuth, sizeof(szAuth));
 		
-		
 		decl String:szURL[128];
 		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
 		if (bClientHasImmunity)
@@ -930,10 +1027,11 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	CloseHandle(kv);
 	
 
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D); //&& !bClientHasImmunity);
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
 	{
 		new Handle:data;
+		g_fLastMOTDLoad[client] = GetGameTime();
 		CreateDataTimer(0.25, Timer_Restrict, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 		WritePackCell(data, GetClientSerial(client));
 		WritePackFloat(data, GetGameTime());
@@ -972,13 +1070,14 @@ public bool:IsClientInForcedCooldown(client)
 		return false; // Backend has responded
 	}
 	
-	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
+	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
+	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (!bUseCooldown)
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
-		PrintToConsole(client, "Cooldown does not apply in this game");
+		PrintToConsole(client, "Cooldown does not apply to this client");
 		#endif
-		return false;	//Cooldown does not apply here
+		return false;	//Cooldown does not apply to this target
 	}
 	
 	if (g_fPlayerCooldownStartedAt[client] != 0)
@@ -1005,7 +1104,7 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 	
 	if (GetState(client) == kAdClosing || GetState(client) == kViewingAd)	//Ad is loaded
 	{
-		if (GetClientTeam(client) != 0) // player has joined a team
+		if (GetClientTeam(client) != 0 || g_Game == kGameNMRIH) // player has joined a team
 			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else // Player still needs the menu open
 			ShowMOTDPanelEx(client, MOTD_TITLE, "http://Pinion.gg", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
@@ -1113,11 +1212,48 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
+		if (g_Game == kGameTF2)
+		{
+			/*
+			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
+			{
+				new Handle:kv = CreateKeyValues("data");
+				new String:url[] = "http:// ";
+				KvSetString(kv, "title", MOTD_TITLE);
+				KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
+				KvSetString(kv, "msg", url);
+				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
+				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
+				CloseHandle(kv);
+				
+				g_fLastMOTDLoad[client] = GetGameTime();
+			}
+			*/
+		}
+		else if (g_Game == kGameFoF)
+		{
+			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 1.0)
+			{
+				new Handle:kv = CreateKeyValues("data");
+				new String:url[] = "http://#";
+				KvSetString(kv, "title", MOTD_TITLE);
+				KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
+				KvSetString(kv, "msg", url);
+				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
+				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
+				CloseHandle(kv);
+				
+				g_fLastMOTDLoad[client] = GetGameTime();
+			}
+		}
+		else
+			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+	
 		if (g_iDynamicDisplayTime[client] > 0)
 			PrintCenterText(client, "You may continue in %d seconds.", timeleft);
 		else
 			PrintCenterText(client, "Loading...");
-		ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		
 		return Plugin_Continue;
 	}
 	
@@ -1157,6 +1293,10 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameHL2DM
 		|| g_Game == kGameND
 		|| g_Game == kGameCSGO
+		|| g_Game == kGameNMRIH
+		|| g_Game == kGameFoF
+		|| g_Game == kGameZPS
+		|| g_Game == kGameDAB
 		;
 }
 
@@ -1217,10 +1357,10 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		return;
 	}
 	
-	new JSON:hJson = json_decode(sQueryData); 
+	new Handle:hJson = DecodeJSON(sQueryData); 
 	new queryResult = -1;
 	
-	if (hJson != JSON_INVALID && json_get_cell(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
+	if (hJson != INVALID_HANDLE && JSONGetInteger(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Query finished, backend returned delay of %i", queryResult);
@@ -1228,6 +1368,7 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		//Update the delay timer
 		g_iDynamicDisplayTime[client] = queryResult;
 		g_bIsQueryRunning[client] = false;
+		DestroyJSON(hJson);
 		return;
 	}
 	//else if (g_iNumQueryAttempts[client] >= MAX_QUERY_ATTEMPTS)
@@ -1238,6 +1379,8 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		#endif
 		g_iNumQueryAttempts[client] = 1;
 		g_bIsQueryRunning[client] = false;
+		if (hJson != INVALID_HANDLE)
+			DestroyJSON(hJson);
 		return;
 	}
 	else
@@ -1245,7 +1388,8 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Query failed: Retrying...", sQueryData);
 		#endif
-		
+		if (hJson != INVALID_HANDLE)
+			DestroyJSON(hJson);
 		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		return;
 	}
