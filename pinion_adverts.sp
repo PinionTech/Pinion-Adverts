@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.30"
+#define PLUGIN_VERSION "1.12.31a"
 /*
 Changelog
 	
+	1.12.31a <-> 2015 4/20 - Caelan Borowiec
+		Updated plugin and EasyHTTP to support SourceMod 1.7.1
 	1.12.30 <-> 2015 1/29 - Caelan Borowiec
 		Merged sm_motdredirect_review and sm_motdredirect_tf2_review_event cvars
 		Added review support for all games
@@ -806,7 +808,7 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 		return;
 
 	decl String:SteamID[32];
-	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 	RemoveFromTrie(g_hPlayerLastViewedAd, SteamID);
 
 	g_fPlayerCooldownStartedAt[client] = 0.0;
@@ -828,7 +830,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 		return;
 	
 	decl String:SteamID[32];
-	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 	
 	new iLastAdView;
 	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, iLastAdView))
@@ -864,7 +866,7 @@ public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:d
 		return;
 	
 	decl String:SteamID[32];
-	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 	
 	new iLastAdView;
 	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, iLastAdView))
@@ -987,7 +989,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		GetMapTimeLeft(timeleft);
 		
 		new String:SteamID[32];
-		GetClientAuthString(client, SteamID, sizeof(SteamID));
+		GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 		g_fPlayerCooldownStartedAt[client] = GetGameTime();
 		
 		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
@@ -1001,7 +1003,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		}
 		
 		decl String:szAuth[MAX_AUTH_LENGTH];
-		GetClientAuthString(client, szAuth, sizeof(szAuth));
+		GetClientAuthId(client, AuthId_Steam2, szAuth, sizeof(szAuth));
 		
 		decl String:szURL[128];
 		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
@@ -1315,7 +1317,7 @@ GetClientAdvertDelayEasyHTTP(client)
 	
 	new String:sQueryURL[84] = "http://adback.pinion.gg/v2/duration/";
 	new String:SteamID[32];
-	GetClientAuthString(client, SteamID, sizeof(SteamID));
+	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 	
 	StrCat(sQueryURL, sizeof(sQueryURL), SteamID);
 	
@@ -1324,7 +1326,7 @@ GetClientAdvertDelayEasyHTTP(client)
 	#endif
 	
 	// Request a customized ad delay for the client
-	if(!EasyHTTP(sQueryURL, Helper_GetAdStatus_Complete, GetClientUserId(client)))
+	if(!EasyHTTP(sQueryURL, GET, INVALID_HANDLE, Helper_GetAdStatus_Complete, GetClientUserId(client)))
 	{
 		LogError("Sending EasyHTTP request failed.");
 		#if defined SHOW_CONSOLE_MESSAGES
