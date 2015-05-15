@@ -543,7 +543,7 @@ public EasyHTTP_SocketReceive(Handle:socket, String:receiveData[], const dataSiz
 	ReadPackCell(Handle:data);
 	ReadPackString(Handle:data, STRING(m_szHelper));
 
-	ReadPackCell(Handle:data);
+	ReadPackFunction(Handle:data);
 	ReadPackCell(Handle:data);
 	decl String:m_szPath[PLATFORM_MAX_PATH];
 	ReadPackString(Handle:data, STRING(m_szPath));
