@@ -309,7 +309,7 @@ stock EasyHTTP_GetBaseURL(const String:url[], String:output[], maxlen, bool:prot
 
 public EasyHTTP_CurlWrite(Handle:hndl, const String:buffer[], const bytes, const nmemb, any:data)
 {
-	ReadPackCell(Handle:data);
+	ReadPackFunction(Handle:data);
 	ReadPackCell(Handle:data);
 	decl String:m_szPath[PLATFORM_MAX_PATH];
 	ReadPackString(Handle:data, STRING(m_szPath));
@@ -343,8 +343,6 @@ public EasyHTTP_CurlWrite(Handle:hndl, const String:buffer[], const bytes, const
 
 public EasyHTTP_CurlComplete(Handle:hndl, CURLcode:code, any:data)
 {
-	CloseHandle(hndl);
-
 	new Function:m_fnCallback = ReadPackFunction(Handle:data);
 	new any:m_aData = ReadPackCell(Handle:data);
 	decl String:m_szPath[PLATFORM_MAX_PATH];
@@ -359,6 +357,7 @@ public EasyHTTP_CurlComplete(Handle:hndl, CURLcode:code, any:data)
 		new String:err[256];
 		curl_get_error_buffer(hndl, err, sizeof(err));
 		LogError("CURL error received: %d (%s)", code, err);
+		CloseHandle(hndl);
 		if(m_fnCallback != INVALID_FUNCTION)
 		{
 			Call_StartFunction(INVALID_HANDLE, m_fnCallback);
@@ -369,7 +368,7 @@ public EasyHTTP_CurlComplete(Handle:hndl, CURLcode:code, any:data)
 		}
 		return;
 	}
-
+	CloseHandle(hndl);
 
 	if(m_fnCallback != INVALID_FUNCTION)
 	{
