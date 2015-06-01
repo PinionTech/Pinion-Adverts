@@ -21,10 +21,14 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.31"
+#define PLUGIN_VERSION "1.12.32-dev"
 /*
 Changelog
 	
+	1.12.32-dev <-> 2015 1/29 - Caelan Borowiec
+		Added experimental review for TF2, CSS, DoD:S, HL2:DM, No More Room In Hell, and Double Action: Boogaloo
+		Removed wait message
+		Set default wait to 6 seconds (down from 30)
 	1.12.31 <-> 2015 5/15 - Caelan Borowiec
 		Updated plugin and EasyHTTP to support SourceMod 1.7.x
 		Fixed compatibility issues with cURL and Socket
@@ -261,7 +265,7 @@ public Plugin:myinfo =
 //The number of seconds to delay between failed query attempts
 #define QUERY_DELAY 3.0
 // The number of seconds players will wait if the backend doesnt respond
-#define DEF_COOLDOWN 30
+#define DEF_COOLDOWN 6
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
@@ -1218,25 +1222,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
-		if (g_Game == kGameTF2)
-		{
-			/*
-			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
-			{
-				new Handle:kv = CreateKeyValues("data");
-				new String:url[] = "http:// ";
-				KvSetString(kv, "title", MOTD_TITLE);
-				KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
-				KvSetString(kv, "msg", url);
-				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
-				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
-				CloseHandle(kv);
-				
-				g_fLastMOTDLoad[client] = GetGameTime();
-			}
-			*/
-		}
-		else if (g_Game == kGameFoF)
+		if (g_Game == kGameFoF || g_Game == kGameTF2 || g_Game == kGameCSS || g_Game == kGameDODS || g_Game == kGameNMRIH || g_Game == kGameFoF || g_Game == kGameHL2DM || g_Game == kGameDAB)
 		{
 			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 1.0)
 			{
@@ -1254,16 +1240,9 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		}
 		else
 			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-	
-		if (g_iDynamicDisplayTime[client] > 0)
-			PrintCenterText(client, "You may continue in %d seconds.", timeleft);
-		else
-			PrintCenterText(client, "Loading...");
 		
 		return Plugin_Continue;
 	}
-	
-	PrintCenterText(client, "");
 	
 	ChangeState(client, kAdClosing);
 	
