@@ -21,11 +21,14 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.32-dev"
+#define PLUGIN_VERSION "1.12.32-dev2"
 /*
 Changelog
 	
-	1.12.32-dev <-> 2015 1/29 - Caelan Borowiec
+	1.12.32-dev2 <-> 2015 6/15 - Caelan Borowiec
+		Forced wait time has been removed on quickplay servers
+		Added wait-countdown messages to console
+	1.12.32-dev <-> 2015 5/29 - Caelan Borowiec
 		Added experimental review for TF2, CSS, DoD:S, HL2:DM, No More Room In Hell, and Double Action: Boogaloo
 		Removed wait message
 		Set default wait to 6 seconds (down from 30)
@@ -316,10 +319,13 @@ new Handle:g_ConVar_URL;
 new Handle:g_ConVarReviewOption;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
+new Handle:bQPReg;
+new Handle:bQPDisable;
 
 // Globals required/used by dynamic delay code
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
 new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
+new bool:g_bIsQuickplayActive = false;
 new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
@@ -662,6 +668,11 @@ RefreshCvarCache()
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 		hostport);
+		
+	bQPReg = FindConVar("sv_registration_successful");
+	bQPDisable = FindConVar("tf_server_identity_disable_quickplay");
+	
+	g_bIsQuickplayActive =  (bQPReg != INVALID_HANDLE && bQPDisable != INVALID_HANDLE && GetConVarBool(bQPReg) && !GetConVarBool(bQPDisable));
 }
 
 SetupReView()
@@ -673,6 +684,14 @@ SetupReView()
 		HookEvent("teamplay_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 		HookEvent("teamplay_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
 		HookEvent("arena_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);
+		
+		bQPReg = FindConVar("sv_registration_successful");
+		bQPDisable = FindConVar("tf_server_identity_disable_quickplay");
+		
+		g_bIsQuickplayActive =  (bQPReg != INVALID_HANDLE && bQPDisable != INVALID_HANDLE && GetConVarBool(bQPReg) && !GetConVarBool(bQPDisable));
+			
+		HookConVarChange(bQPReg, Event_CvarChange);
+		HookConVarChange(bQPDisable, Event_CvarChange);
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
@@ -1000,7 +1019,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 		g_fPlayerCooldownStartedAt[client] = GetGameTime();
 		
-		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
+		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && g_bIsQuickplayActive == false);
 		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
 			g_bIsQueryRunning[client] = true;
@@ -1240,6 +1259,11 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		}
 		else
 			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		
+		if (g_iDynamicDisplayTime[client] > 0)
+			PrintToConsole(client, "You may continue in %d seconds.", timeleft);
+		else
+			PrintToConsole(client, "Loading...");
 		
 		return Plugin_Continue;
 	}
