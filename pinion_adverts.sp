@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.32-dev2"
+#define PLUGIN_VERSION "1.12.32-dev3"
 /*
 Changelog
 	
+	1.12.32-dev3 <-> 2015 6/22 - Caelan Borowiec
+		Added a console variable to disable force completion
 	1.12.32-dev2 <-> 2015 6/15 - Caelan Borowiec
 		Forced wait time has been removed on quickplay servers
 		Added wait-countdown messages to console
@@ -319,8 +321,9 @@ new Handle:g_ConVar_URL;
 new Handle:g_ConVarReviewOption;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
-new Handle:bQPReg;
-new Handle:bQPDisable;
+new Handle:g_ConVarQuickPlayReg;
+new Handle:g_ConVarQuickPlayDisabled;
+new Handle:g_ConVarForceComplete;
 
 // Globals required/used by dynamic delay code
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
@@ -328,6 +331,7 @@ new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
 new bool:g_bIsQuickplayActive = false;
 new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
+new bool:g_bForceComplete = true;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
 
 // TF2 MotD reopening code
@@ -507,6 +511,7 @@ public OnPluginStart()
 	g_ConVarReviewOption = CreateConVar("sm_motdredirect_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 15.0);
 	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
+	g_ConVarForceComplete = CreateConVar("sm_motdredirect_force_complete", "1", "If set to zero, players may close the MOTD window without any wait period'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -515,6 +520,7 @@ public OnPluginStart()
 	// More event hooks for the config files
 	RefreshCvarCache();
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);
+	HookConVarChange(g_ConVarForceComplete, Event_CvarChange);
 	
 	HookEvent("player_activate", Event_PlayerActivate);
 	HookEvent("player_disconnect", Event_PlayerDisconnected);
@@ -669,10 +675,12 @@ RefreshCvarCache()
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 		hostport);
 		
-	bQPReg = FindConVar("sv_registration_successful");
-	bQPDisable = FindConVar("tf_server_identity_disable_quickplay");
+	g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
+	g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
 	
-	g_bIsQuickplayActive =  (bQPReg != INVALID_HANDLE && bQPDisable != INVALID_HANDLE && GetConVarBool(bQPReg) && !GetConVarBool(bQPDisable));
+	g_bForceComplete = GetConVarBool(g_ConVarForceComplete);
+	
+	g_bIsQuickplayActive =  (g_ConVarQuickPlayReg != INVALID_HANDLE && g_ConVarQuickPlayDisabled != INVALID_HANDLE && GetConVarBool(g_ConVarQuickPlayReg) && !GetConVarBool(g_ConVarQuickPlayDisabled));
 }
 
 SetupReView()
@@ -685,13 +693,13 @@ SetupReView()
 		HookEvent("teamplay_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
 		HookEvent("arena_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);
 		
-		bQPReg = FindConVar("sv_registration_successful");
-		bQPDisable = FindConVar("tf_server_identity_disable_quickplay");
+		g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
+		g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
 		
-		g_bIsQuickplayActive =  (bQPReg != INVALID_HANDLE && bQPDisable != INVALID_HANDLE && GetConVarBool(bQPReg) && !GetConVarBool(bQPDisable));
+		g_bIsQuickplayActive =  (g_ConVarQuickPlayReg != INVALID_HANDLE && g_ConVarQuickPlayDisabled != INVALID_HANDLE && GetConVarBool(g_ConVarQuickPlayReg) && !GetConVarBool(g_ConVarQuickPlayDisabled));
 			
-		HookConVarChange(bQPReg, Event_CvarChange);
-		HookConVarChange(bQPDisable, Event_CvarChange);
+		HookConVarChange(g_ConVarQuickPlayReg, Event_CvarChange);
+		HookConVarChange(g_ConVarQuickPlayDisabled, Event_CvarChange);
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
@@ -1019,7 +1027,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 		g_fPlayerCooldownStartedAt[client] = GetGameTime();
 		
-		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && g_bIsQuickplayActive == false);
+		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && g_bIsQuickplayActive == false && g_bForceComplete);
 		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
 			g_bIsQueryRunning[client] = true;
