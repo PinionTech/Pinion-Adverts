@@ -21,10 +21,16 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.31"
+#define PLUGIN_VERSION "1.12.32"
 /*
 Changelog
 	
+	1.12.32 <-> 2015 6/22 - Caelan Borowiec
+		Added a console variable to disable force completion
+		Forced wait time has been removed on quickplay servers
+		Moved wait-countdown messages to console
+		Added experimental review for TF2, CSS, DoD:S, HL2:DM, No More Room In Hell, and Double Action: Boogaloo
+		Set default wait to 6 seconds (down from 30)
 	1.12.31 <-> 2015 5/15 - Caelan Borowiec
 		Updated plugin and EasyHTTP to support SourceMod 1.7.x
 		Fixed compatibility issues with cURL and Socket
@@ -261,7 +267,7 @@ public Plugin:myinfo =
 //The number of seconds to delay between failed query attempts
 #define QUERY_DELAY 3.0
 // The number of seconds players will wait if the backend doesnt respond
-#define DEF_COOLDOWN 30
+#define DEF_COOLDOWN 6
 
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
@@ -312,12 +318,17 @@ new Handle:g_ConVar_URL;
 new Handle:g_ConVarReviewOption;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
+new Handle:g_ConVarQuickPlayReg;
+new Handle:g_ConVarQuickPlayDisabled;
+new Handle:g_ConVarForceComplete;
 
 // Globals required/used by dynamic delay code
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
 new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
+new bool:g_bIsQuickplayActive = false;
 new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
+new bool:g_bForceComplete = true;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
 
 // TF2 MotD reopening code
@@ -497,6 +508,7 @@ public OnPluginStart()
 	g_ConVarReviewOption = CreateConVar("sm_motdredirect_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
 	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 15.0);
 	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
+	g_ConVarForceComplete = CreateConVar("sm_motdredirect_force_complete", "1", "If set to zero, players may close the MOTD window without any wait period'", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -505,6 +517,7 @@ public OnPluginStart()
 	// More event hooks for the config files
 	RefreshCvarCache();
 	HookConVarChange(g_ConVar_URL, Event_CvarChange);
+	HookConVarChange(g_ConVarForceComplete, Event_CvarChange);
 	
 	HookEvent("player_activate", Event_PlayerActivate);
 	HookEvent("player_disconnect", Event_PlayerDisconnected);
@@ -658,6 +671,13 @@ RefreshCvarCache()
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 		hostport);
+		
+	g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
+	g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
+	
+	g_bForceComplete = GetConVarBool(g_ConVarForceComplete);
+	
+	g_bIsQuickplayActive =  (g_ConVarQuickPlayReg != INVALID_HANDLE && g_ConVarQuickPlayDisabled != INVALID_HANDLE && GetConVarBool(g_ConVarQuickPlayReg) && !GetConVarBool(g_ConVarQuickPlayDisabled));
 }
 
 SetupReView()
@@ -669,6 +689,14 @@ SetupReView()
 		HookEvent("teamplay_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 		HookEvent("teamplay_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
 		HookEvent("arena_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);
+		
+		g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
+		g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
+		
+		g_bIsQuickplayActive =  (g_ConVarQuickPlayReg != INVALID_HANDLE && g_ConVarQuickPlayDisabled != INVALID_HANDLE && GetConVarBool(g_ConVarQuickPlayReg) && !GetConVarBool(g_ConVarQuickPlayDisabled));
+			
+		HookConVarChange(g_ConVarQuickPlayReg, Event_CvarChange);
+		HookConVarChange(g_ConVarQuickPlayDisabled, Event_CvarChange);
 	}
 	else if (g_Game == kGameL4D2 || g_Game == kGameL4D)
 	{
@@ -996,7 +1024,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 		g_fPlayerCooldownStartedAt[client] = GetGameTime();
 		
-		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D);
+		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && g_bIsQuickplayActive == false && g_bForceComplete);
 		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
 			g_bIsQueryRunning[client] = true;
@@ -1218,25 +1246,7 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
-		if (g_Game == kGameTF2)
-		{
-			/*
-			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 3.0)
-			{
-				new Handle:kv = CreateKeyValues("data");
-				new String:url[] = "http:// ";
-				KvSetString(kv, "title", MOTD_TITLE);
-				KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
-				KvSetString(kv, "msg", url);
-				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
-				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
-				CloseHandle(kv);
-				
-				g_fLastMOTDLoad[client] = GetGameTime();
-			}
-			*/
-		}
-		else if (g_Game == kGameFoF)
+		if (g_Game == kGameFoF || g_Game == kGameTF2 || g_Game == kGameCSS || g_Game == kGameDODS || g_Game == kGameNMRIH || g_Game == kGameFoF || g_Game == kGameHL2DM || g_Game == kGameDAB)
 		{
 			if (RoundToFloor(GetGameTime() - g_fLastMOTDLoad[client]) > 1.0)
 			{
@@ -1254,16 +1264,14 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 		}
 		else
 			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-	
+		
 		if (g_iDynamicDisplayTime[client] > 0)
-			PrintCenterText(client, "You may continue in %d seconds.", timeleft);
+			PrintToConsole(client, "You may continue in %d seconds.", timeleft);
 		else
-			PrintCenterText(client, "Loading...");
+			PrintToConsole(client, "Loading...");
 		
 		return Plugin_Continue;
 	}
-	
-	PrintCenterText(client, "");
 	
 	ChangeState(client, kAdClosing);
 	
