@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.32"
+#define PLUGIN_VERSION "1.12.33"
 /*
 Changelog
 	
+	1.12.33 <-> 2015 6/26 - Caelan Borowiec
+		Changed timer response handling
 	1.12.32 <-> 2015 6/22 - Caelan Borowiec
 		Added a console variable to disable force completion
 		Forced wait time has been removed on quickplay servers
@@ -1232,12 +1234,14 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 	new Float:flStartTime = ReadPackFloat(data);
 	
 	new iCooldown = DEF_COOLDOWN; // Default cooldown
-	
+	/*
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
 		iCooldown = g_iDynamicDisplayTime[client]; // Use backend's value
 	}
-	else if (g_iDynamicDisplayTime[client] < 0) //Backend said there was nothing
+	else 
+	*/
+	if (g_iDynamicDisplayTime[client] <= 0) //Backend said there was nothing
 	{
 		iCooldown = 0; // Ditch the cooldown
 	}
