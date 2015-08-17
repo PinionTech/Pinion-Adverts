@@ -27,6 +27,7 @@ Changelog
 	
 	1.12.34 <-> 2015 8/16 - Caelan Borowiec
 		Fixed triggering adverts on DeadRinger feigned deaths
+		Updated the url loaded when player is idle
 	1.12.33 <-> 2015 6/26 - Caelan Borowiec
 		Changed timer response handling
 	1.12.32 <-> 2015 6/22 - Caelan Borowiec
@@ -1150,7 +1151,7 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 		if (GetClientTeam(client) != 0 || g_Game == kGameNMRIH) // player has joined a team
 			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else // Player still needs the menu open
-			ShowMOTDPanelEx(client, MOTD_TITLE, "http://Pinion.gg", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
+			ShowMOTDPanelEx(client, MOTD_TITLE, "http://unikrn.com/sites/um100", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 	}
 }
 
