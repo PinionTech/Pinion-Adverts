@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.33"
+#define PLUGIN_VERSION "1.12.34"
 /*
 Changelog
 	
+	1.12.34 <-> 2015 8/16 - Caelan Borowiec
+		Fixed triggering adverts on DeadRinger feigned deaths
 	1.12.33 <-> 2015 6/26 - Caelan Borowiec
 		Changed timer response handling
 	1.12.32 <-> 2015 6/22 - Caelan Borowiec
@@ -231,6 +233,7 @@ Changelog
 
 #define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
+#define FEIGNDEATH (1 << 5)
 
 //#define SHOW_CONSOLE_MESSAGES
 
@@ -854,6 +857,10 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {	
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
+		return;
+
+	new deathflags = GetEventInt(event, "death_flags");
+	if (deathflags & FEIGNDEATH)
 		return;
 		
 	new now = GetTime();
