@@ -21,17 +21,16 @@ Configuration Variables: See pinion_adverts_lite.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "0.0.1"
+#define PLUGIN_VERSION "0.0.2"
 /*
 Changelog
 	
-	0.1.0 <-> 2015 8/16 - Caelan Borowiec
-		Initial 'Lite' version
+	0.0.* <-> 2015 - Caelan Borowiec
+		Initial 'Lite' version changes
 
 */
 
 #include <sourcemod>
-#include <sdktools>
 #undef REQUIRE_PLUGIN
 #tryinclude <updater>
 #define REQUIRE_PLUGIN
@@ -39,9 +38,7 @@ Changelog
 
 #pragma semicolon 1
 
-#define TEAM_SPEC 1
 #define MAX_AUTH_LENGTH 64
-#define FEIGNDEATH (1 << 5)
 
 //#define SHOW_CONSOLE_MESSAGES
 
@@ -78,7 +75,7 @@ public Plugin:myinfo =
 // Some games require a title to explicitly be set (while others don't even show the set title)
 #define MOTD_TITLE "Sponsor Message"
 
-#define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts/updatefile.txt"
+#define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts_lite/updatefile.txt"
 
 // Game detection
 enum EGame
@@ -118,7 +115,7 @@ new const String:g_SupportedGames[EGame][] = {
 new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
-new Handle:g_ConVar_URL;
+new Handle:g_ConVar_Community;
 
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
@@ -169,10 +166,12 @@ public OnPluginStart()
 		SetFailState("Failed to find VGUIMenu usermessage");
 	
 	HookUserMessage(VGUIMenu, OnMsgVGUIMenu, true);
+	
+	
 	AddCommandListener(PageClosed, "closed_htmlpage");
 	
 	// Specify console variables used to configure plugin
-	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
+	g_ConVar_Community = CreateConVar("sm_motdredirect_community", "", "Target URL to replace MOTD");
 	AutoExecConfig(true, "pinion_adverts_lite");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -180,7 +179,7 @@ public OnPluginStart()
 
 	// More event hooks for the config files
 	RefreshCvarCache();
-	HookConVarChange(g_ConVar_URL, Event_CvarChange);
+	HookConVarChange(g_ConVar_Community, Event_CvarChange);
 	
 	for (new i = 1; i <= MaxClients; ++i)
 	{
@@ -212,11 +211,11 @@ public OnConfigsExecuted()
 	// Synchronize Cvar Cache after configuration loaded
 	RefreshCvarCache();
 	
-	decl String:szInitialBaseURL[128];
-	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
+	decl String:szCommunityName[128];
+	GetConVarString(g_ConVar_Community, szCommunityName, sizeof(szCommunityName));
 	
-	if (StrEqual(szInitialBaseURL, ""))
-		LogError("ConVar sm_motdredirect_url has not been set:  Please check your pinion_adverts config file.");
+	if (StrEqual(szCommunityName, ""))
+		LogError("ConVar sm_motdredirect_community has not been set:  Please check your pinion_adverts config file.");
 }
 
 // Called after all plugins are loaded
@@ -270,15 +269,18 @@ public Event_CvarChange(Handle:convar, const String:oldValue[], const String:new
 RefreshCvarCache()
 {
 	// Build and cache url/ip/port string
-	decl String:szInitialBaseURL[128];
-	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
+	decl String:szCommunityName[128];
+	GetConVarString(g_ConVar_Community, szCommunityName, sizeof(szCommunityName));
+	
+	ReplaceString(szCommunityName, sizeof(szCommunityName), " ", "");
 	
 	new hostip = GetConVarInt(FindConVar("hostip"));
 	new hostport = GetConVarInt(FindConVar("hostport"));
 	
-	// TODO: Add gamedir url var?
-	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d",
-		szInitialBaseURL,
+	// Format: http://motd.pinion.gg/motd/communityname/game/etcetc
+	Format(g_BaseURL, sizeof(g_BaseURL), "http://motd.pinion.gg/motd/%s/%s/?ip=%d.%d.%d.%d&po=%d",
+		szCommunityName,
+		g_SupportedGames[g_Game],
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 		hostport);
 		
@@ -426,7 +428,7 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 		if (GetClientTeam(client) != 0 || g_Game == kGameNMRIH) // player has joined a team
 			ShowMOTDPanelEx(client, MOTD_TITLE, "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else // Player still needs the menu open
-			ShowMOTDPanelEx(client, MOTD_TITLE, "http://Pinion.gg", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
+			ShowMOTDPanelEx(client, MOTD_TITLE, "https://unikrn.com/sites/um100", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 	}
 }
 public Action:PageClosed(client, const String:command[], argc)
