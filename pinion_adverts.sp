@@ -26,7 +26,7 @@ Configuration Variables: See pinion_adverts.cfg.
 Changelog
 	
 	1.12.34 <-> 2015 8/16 - Caelan Borowiec
-		Fixed triggering adverts on DeadRinger feigned deaths
+		Fixed triggering adverts on DeadRinger feigned deaths (Credit CoolJosh3k)
 		Updated the url loaded when player is idle
 	1.12.33 <-> 2015 6/26 - Caelan Borowiec
 		Changed timer response handling
