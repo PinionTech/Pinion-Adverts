@@ -21,7 +21,7 @@ Configuration Variables: See pinion_adverts_lite.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "0.0.2"
+#define PLUGIN_VERSION "0.0.3"
 /*
 Changelog
 	
@@ -34,13 +34,13 @@ Changelog
 #undef REQUIRE_PLUGIN
 #tryinclude <updater>
 #define REQUIRE_PLUGIN
-#define STRING(%1) %1, sizeof(%1)
-
 #pragma semicolon 1
-
 #define MAX_AUTH_LENGTH 64
-
 //#define SHOW_CONSOLE_MESSAGES
+
+// Some games require a title to explicitly be set (while others don't even show the set title)
+#define MOTD_TITLE "Sponsor Message"
+#define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts_lite/updatefile.txt"
 
 enum
 {
@@ -53,15 +53,6 @@ enum
 	MOTDPANEL_CMD_CHOOSE_TEAM,
 };
 
-enum loadTigger
-{
-	AD_TRIGGER_UNDEFINED = 0,						// No data, this should never happen
-	AD_TRIGGER_CONNECT,								// Player joined the server
-	AD_TRIGGER_PLAYER_TRANSITION,				// L4D/L4D2 player regained control of a character after a stage transition
-	AD_TRIGGER_GLOBAL_TIMER,						// Not currently used
-	AD_TRIGGER_GLOBAL_TIMER_ROUNDEND,		// Re-view advertisement triggered at round end/round start
-};
-
 // Plugin definitions
 public Plugin:myinfo =
 {
@@ -72,10 +63,6 @@ public Plugin:myinfo =
 	url = "http://www.pinion.gg/"
 };
 
-// Some games require a title to explicitly be set (while others don't even show the set title)
-#define MOTD_TITLE "Sponsor Message"
-
-#define UPDATE_URL "http://bin.pinion.gg/bin/pinion_adverts_lite/updatefile.txt"
 
 // Game detection
 enum EGame
