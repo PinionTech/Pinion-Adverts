@@ -26,7 +26,7 @@ Configuration Variables: See pinion_adverts.cfg.
 Changelog
 	
 	1.12.35 <-> 2015 8/31 - Caelan Borowiec
-		Added a default landing page that is used if the sm_motdredirect_url cvar is not set
+		Added a default landing page that is used if the sm_motdredirect_url cvar is not set  (Credit CoolJosh3k)
 	1.12.34 <-> 2015 8/16 - Caelan Borowiec
 		Fixed triggering adverts on DeadRinger feigned deaths (Credit CoolJosh3k)
 		Updated the url loaded when player is idle
