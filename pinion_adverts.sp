@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.34"
+#define PLUGIN_VERSION "1.12.35"
 /*
 Changelog
 	
+	1.12.35 <-> 2015 8/31 - Caelan Borowiec
+		Added a default landing page that is used if the sm_motdredirect_url cvar is not set
 	1.12.34 <-> 2015 8/16 - Caelan Borowiec
 		Fixed triggering adverts on DeadRinger feigned deaths (Credit CoolJosh3k)
 		Updated the url loaded when player is idle
@@ -677,6 +679,9 @@ RefreshCvarCache()
 		szInitialBaseURL,
 		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 		hostport);
+		
+	if (StrContains(g_BaseURL, "http://", false) != 0 && StrContains(g_BaseURL, "https://", false) != 0)
+		strcopy(g_BaseURL, sizeof(g_BaseURL), "https://unikrn.com/sites/um100?");
 		
 	g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
 	g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
