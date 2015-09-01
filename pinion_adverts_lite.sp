@@ -21,11 +21,13 @@ Configuration Variables: See pinion_adverts_lite.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "0.0.3"
+#define PLUGIN_VERSION "1.0.0"
 /*
 Changelog
 	
-	0.0.* <-> 2015 - Caelan Borowiec
+	1.0.0 <-> 8/31/2015 - Caelan Borowiec
+		Initial beta release of lite version
+	0.0.* <-> Caelan Borowiec
 		Initial 'Lite' version changes
 
 */
@@ -51,6 +53,15 @@ enum
 	MOTDPANEL_CMD_MAPINFO,
 	MOTDPANEL_CMD_CLOSED_HTMLPAGE,
 	MOTDPANEL_CMD_CHOOSE_TEAM,
+};
+
+enum loadTigger
+{
+	AD_TRIGGER_UNDEFINED = 0,						// No data, this should never happen
+	AD_TRIGGER_CONNECT,								// Player joined the server
+	AD_TRIGGER_PLAYER_TRANSITION,				// L4D/L4D2 player regained control of a character after a stage transition
+	AD_TRIGGER_GLOBAL_TIMER,						// Not currently used
+	AD_TRIGGER_GLOBAL_TIMER_ROUNDEND,		// Re-view advertisement triggered at round end/round start
 };
 
 // Plugin definitions
