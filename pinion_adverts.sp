@@ -240,7 +240,7 @@ Changelog
 #define MAX_AUTH_LENGTH 64
 #define FEIGNDEATH (1 << 5)
 
-//#define SHOW_CONSOLE_MESSAGES
+#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -811,8 +811,13 @@ public Event_FirstSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || IsFakeClient(client) || !IsClientInGame(client))
 		return;
-		
-	FakeClientCommand (client, "motd");
+	
+	new Handle:pack = CreateDataPack();
+	WritePackCell(pack, GetClientSerial(client));
+	WritePackCell(pack, AD_TRIGGER_CONNECT);
+	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	
+	return;
 }
 
 public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
@@ -1345,6 +1350,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameFoF
 		|| g_Game == kGameZPS
 		|| g_Game == kGameDAB
+		|| g_Game == kGameInsurgency
 		;
 }
 
