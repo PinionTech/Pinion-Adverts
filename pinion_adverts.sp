@@ -240,7 +240,7 @@ Changelog
 #define MAX_AUTH_LENGTH 64
 #define FEIGNDEATH (1 << 5)
 
-#define SHOW_CONSOLE_MESSAGES
+//#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -1325,6 +1325,9 @@ EPlayerState:GetState(client)
 ChangeState(client, EPlayerState:newState)
 {
 	g_PlayerState[client] = newState;
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToServer("\n\n%N's state changed to: %i", client, newState);
+	#endif
 }
 
 stock UTIL_StringToLower(String:szInput[])
