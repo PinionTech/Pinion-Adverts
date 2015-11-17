@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.35"
+#define PLUGIN_VERSION "1.12.36"
 /*
 Changelog
 	
+	1.12.36 <-> 2015 11/5 - Caelan Borowiec
+		Added basic support for Insurgency 2014
 	1.12.35 <-> 2015 8/31 - Caelan Borowiec
 		Added a default landing page that is used if the sm_motdredirect_url cvar is not set  (Credit CoolJosh3k)
 	1.12.34 <-> 2015 8/16 - Caelan Borowiec
@@ -302,6 +304,7 @@ enum EGame
 	kGameDAB,
 	kGameGES,
 	kGameHidden,
+	kGameInsurgency,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -317,7 +320,8 @@ new const String:g_SupportedGames[EGame][] = {
 	"zps",
 	"dab",
 	"gesource",
-	"hidden"
+	"hidden",
+	"insurgency"
 };
 new EGame:g_Game = kGameUnsupported;
 
@@ -723,6 +727,10 @@ SetupReView()
 		HookEvent("game_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 		HookEvent("game_round_end", Event_HandleReview, EventHookMode_PostNoCopy);
 	}
+	else if (g_Game == kGameInsurgency)
+	{
+		HookEvent("player_first_spawn", Event_FirstSpawn, EventHookMode_PostNoCopy);
+	}
 	
 	HookEventEx("round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 	HookEventEx("round_win", Event_HandleReview, EventHookMode_PostNoCopy);
@@ -796,6 +804,20 @@ public OnMapEnd()
 public OnMapStart()
 {
 	g_bIsMapActive = true;
+}
+
+public Event_FirstSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || IsFakeClient(client) || !IsClientInGame(client))
+		return;
+	
+	new Handle:pack = CreateDataPack();
+	WritePackCell(pack, GetClientSerial(client));
+	WritePackCell(pack, AD_TRIGGER_CONNECT);
+	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	
+	return;
 }
 
 public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
@@ -1303,6 +1325,9 @@ EPlayerState:GetState(client)
 ChangeState(client, EPlayerState:newState)
 {
 	g_PlayerState[client] = newState;
+	#if defined SHOW_CONSOLE_MESSAGES
+	PrintToServer("\n\n%N's state changed to: %i", client, newState);
+	#endif
 }
 
 stock UTIL_StringToLower(String:szInput[])
@@ -1328,6 +1353,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameFoF
 		|| g_Game == kGameZPS
 		|| g_Game == kGameDAB
+		|| g_Game == kGameInsurgency
 		;
 }
 
