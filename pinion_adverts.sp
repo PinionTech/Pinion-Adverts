@@ -21,7 +21,7 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.36"
+#define PLUGIN_VERSION "1.12.37"
 /*
 Changelog
 	
@@ -240,7 +240,7 @@ Changelog
 #define MAX_AUTH_LENGTH 64
 #define FEIGNDEATH (1 << 5)
 
-//#define SHOW_CONSOLE_MESSAGES
+#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -327,12 +327,15 @@ new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
 new Handle:g_ConVar_URL;
+new Handle:g_ConVar_Community;
+
 new Handle:g_ConVarReviewOption;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
+new Handle:g_ConVarForceComplete;
+
 new Handle:g_ConVarQuickPlayReg;
 new Handle:g_ConVarQuickPlayDisabled;
-new Handle:g_ConVarForceComplete;
 
 // Globals required/used by dynamic delay code
 new g_iNumQueryAttempts[MAXPLAYERS +1] = 1;
@@ -516,19 +519,25 @@ public OnPluginStart()
 	AddCommandListener(PageClosed, "closed_htmlpage");
 	
 	// Specify console variables used to configure plugin
-	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	g_ConVarReviewOption = CreateConVar("sm_motdredirect_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
-	g_ConVarReViewTime = CreateConVar("sm_motdredirect_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 15.0);
-	g_ConVarImmunityEnabled = CreateConVar("sm_motdredirect_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
-	g_ConVarForceComplete = CreateConVar("sm_motdredirect_force_complete", "1", "If set to zero, players may close the MOTD window without any wait period'", 0, true, 0.0, true, 1.0);
-	AutoExecConfig(true, "pinion_adverts");
+	g_ConVar_Community = CreateConVar("sm_pinion_adverts_community", "", "Community ID");
+	g_ConVarReviewOption = CreateConVar("sm_pinion_adverts_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
+	g_ConVarReViewTime = CreateConVar("sm_pinion_adverts_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 15.0);
+	g_ConVarImmunityEnabled = CreateConVar("sm_pinion_adverts_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
+	g_ConVarForceComplete = CreateConVar("sm_pinion_adverts_force_complete", "1", "If set to zero, players may close the MOTD window without any wait period", 0, true, 0.0, true, 1.0);
+	AutoExecConfig(true, "pinion_adverts");  // Load and create config file with the cvars above
+	
+	//If registered as cvars, these will be entered into the config file and/or not read correctly. So lets register them as commands:
+	RegServerCmd("sm_motdredirect_review", OldCvarCatcher, "Outdated cvar, please update your configs.");
+	RegServerCmd("sm_motdredirect_review_time", OldCvarCatcher, "Outdated cvar, please update your configs.");
+	RegServerCmd("sm_motdredirect_immunity_enable", OldCvarCatcher, "Outdated cvar, please update your configs.");
+	RegServerCmd("sm_motdredirect_force_complete", OldCvarCatcher, "Outdated cvar, please update your configs.");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
-	CreateConVar("sm_motdredirect_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("sm_pinion_adverts_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	// More event hooks for the config files
 	RefreshCvarCache();
-	HookConVarChange(g_ConVar_URL, Event_CvarChange);
+	HookConVarChange(g_ConVar_Community, Event_CvarChange);
 	HookConVarChange(g_ConVarForceComplete, Event_CvarChange);
 	
 	HookEvent("player_activate", Event_PlayerActivate);
@@ -552,6 +561,42 @@ public OnPluginStart()
 #endif
 }
 
+public Action:OldCvarCatcher(args)
+{
+	if (args != 1)
+		return Plugin_Stop;
+	
+	new String: sCVarName[64];
+	new String: sValue[10];
+	GetCmdArg(0, sCVarName, sizeof(sCVarName));
+	GetCmdArg(1, sValue, sizeof(sValue));
+	
+	//ToDo: Add bounds checking here
+	if (StrEqual(sCVarName, "sm_motdredirect_review", false))
+		SetConVarInt(g_ConVarReviewOption, StringToInt(sValue));
+		
+	else if (StrEqual(sCVarName, "sm_motdredirect_review_time", false))
+		SetConVarInt(g_ConVarReViewTime, StringToInt(sValue));
+		
+	else if (StrEqual(sCVarName, "sm_motdredirect_immunity_enable", false))
+		SetConVarInt(g_ConVarImmunityEnabled, StringToInt(sValue));
+		
+	else if (StrEqual(sCVarName, "sm_motdredirect_force_complete", false))
+		SetConVarInt(g_ConVarForceComplete, StringToInt(sValue));
+		
+	//Warn
+	LogError("Warning: It looks like you are using the old %s cvar.  Please update your config files to use our new cvar names.", sCVarName);
+	return Plugin_Handled;
+}
+
+public Action:DelayOldCvars(Handle:timer)
+{
+	//Also register the old cvars for backwards compatibility
+	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
+	
+	HookConVarChange(g_ConVar_URL, Event_CvarChange);
+}
+	
 #if defined _updater_included
 public OnLibraryAdded(const String:name[])
 {
@@ -567,10 +612,10 @@ public OnConfigsExecuted()
 	RefreshCvarCache();
 	
 	decl String:szInitialBaseURL[128];
-	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
+	GetConVarString(g_ConVar_Community, szInitialBaseURL, sizeof(szInitialBaseURL));
 	
 	if (StrEqual(szInitialBaseURL, ""))
-		LogError("ConVar sm_motdredirect_url has not been set:  Please check your pinion_adverts config file.");
+		LogError("ConVar sm_pinion_adverts_community has not been set:  Please check your pinion_adverts config file.");
 }
 
 // Called after all plugins are loaded
@@ -671,21 +716,19 @@ public Event_CvarChange(Handle:convar, const String:oldValue[], const String:new
 
 RefreshCvarCache()
 {
-	// Build and cache url/ip/port string
-	decl String:szInitialBaseURL[128];
-	GetConVarString(g_ConVar_URL, szInitialBaseURL, sizeof(szInitialBaseURL));
+	decl String:szCommunityName[128];
+	GetConVarString(g_ConVar_Community, szCommunityName, sizeof(szCommunityName));
 	
-	new hostip = GetConVarInt(FindConVar("hostip"));
-	new hostport = GetConVarInt(FindConVar("hostport"));
+	decl String:szGameProfile[32];
+	GetGameWebDir(szGameProfile, sizeof(szGameProfile));
 	
-	// TODO: Add gamedir url var?
-	Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d",
-		szInitialBaseURL,
-		hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
-		hostport);
+	// "http://motd.pinion.gg/motd/COMMUNITYNAME/GAME/motd.html"
+	Format(g_BaseURL, sizeof(g_BaseURL), "http://motd.pinion.gg/motd/%s/%s/motd.html",
+		szCommunityName,
+		szGameProfile);
 		
-	if (StrContains(g_BaseURL, "http://", false) != 0 && StrContains(g_BaseURL, "https://", false) != 0)
-		strcopy(g_BaseURL, sizeof(g_BaseURL), "https://unikrn.com/sites/um100?");
+	//if (StrContains(g_BaseURL, "http://", false) != 0 && StrContains(g_BaseURL, "https://", false) != 0)
+	//	strcopy(g_BaseURL, sizeof(g_BaseURL), "https://unikrn.com/sites/um100?");
 		
 	g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
 	g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
@@ -774,6 +817,25 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 	}
+}
+
+stock GetGameWebDir(String:output[], size)
+{
+	decl String:szGameDir[32];
+	GetGameFolderName(szGameDir, sizeof(szGameDir));
+	UTIL_StringToLower(szGameDir);
+
+	if (!strcmp(szGameDir, "cstrike") 
+		|| !strcmp(szGameDir, "hl2mp")
+		|| !strcmp(szGameDir, "dod")
+		|| !strcmp(szGameDir, "tf")
+		|| !strcmp(szGameDir, "left4dead2")
+		|| !strcmp(szGameDir, "nucleardawn")
+		|| !strcmp(szGameDir, "csgo")
+		|| !strcmp(szGameDir, "nmrih"))
+		Format(output, size, "%s", szGameDir);
+	else
+		Format(output, size, "tf", szGameDir);
 }
 
 // Extended ShowMOTDPanel with options for Command and Show
@@ -1080,6 +1142,10 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
 		Format(szURL, sizeof(szURL), "%s&pv=%s&tr=%i", szURL, PLUGIN_VERSION, trigger);
 		KvSetString(kv, "msg",	szURL);
+		
+		#if defined SHOW_CONSOLE_MESSAGES
+		PrintToConsole(client, "Loading page %s", szURL);
+		#endif
 		
 		new Handle:pack2;
 		CreateDataTimer(120.0, ClosePage, pack2, TIMER_FLAG_NO_MAPCHANGE);
