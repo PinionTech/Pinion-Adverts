@@ -21,10 +21,21 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.12.37"
+#define PLUGIN_VERSION "1.16.00"
 /*
 Changelog
 	
+	1.16.00 <-> 2016 1/12 - Caelan Borowiec
+		Updated all cvars to follow the naming convention sm_pinion_adverts_*
+			- New version cvar: sm_pinion_adverts_version
+			- See config for other cvars
+		Deprecated all old cvars: 
+			Old cvar names will still work, but will not be entered into the config, and will log an error
+		Deprecated sm_motdredirect_url cvar
+		Added sm_pinion_adverts_community cvar
+		Changed MOTD URL format to use textual community IDs rather than IP addresses
+		The old sm_motdredirect_url cvar will still work as before, but will print an error
+		Updated GetGameWebDir with corrected strings
 	1.12.36 <-> 2015 11/5 - Caelan Borowiec
 		Added support for Insurgency 2014
 	1.12.35 <-> 2015 8/31 - Caelan Borowiec
@@ -240,7 +251,7 @@ Changelog
 #define MAX_AUTH_LENGTH 64
 #define FEIGNDEATH (1 << 5)
 
-#define SHOW_CONSOLE_MESSAGES
+//#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -326,7 +337,7 @@ new const String:g_SupportedGames[EGame][] = {
 new EGame:g_Game = kGameUnsupported;
 
 // Console Variables
-new Handle:g_ConVar_URL;
+new String:g_Legacy_URL[PLATFORM_MAX_PATH];
 new Handle:g_ConVar_Community;
 
 new Handle:g_ConVarReviewOption;
@@ -531,6 +542,7 @@ public OnPluginStart()
 	RegServerCmd("sm_motdredirect_review_time", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_immunity_enable", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_force_complete", OldCvarCatcher, "Outdated cvar, please update your configs.");
+	RegServerCmd("sm_motdredirect_url", OldCvarCatcher, "Outdated cvar, please update your configs.");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
 	CreateConVar("sm_pinion_adverts_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -567,7 +579,7 @@ public Action:OldCvarCatcher(args)
 		return Plugin_Stop;
 	
 	new String: sCVarName[64];
-	new String: sValue[10];
+	new String: sValue[256];
 	GetCmdArg(0, sCVarName, sizeof(sCVarName));
 	GetCmdArg(1, sValue, sizeof(sValue));
 	
@@ -584,17 +596,15 @@ public Action:OldCvarCatcher(args)
 	else if (StrEqual(sCVarName, "sm_motdredirect_force_complete", false))
 		SetConVarInt(g_ConVarForceComplete, StringToInt(sValue));
 		
+	else if (StrEqual(sCVarName, "sm_motdredirect_url", false))
+	{
+		strcopy(g_Legacy_URL, sizeof(g_Legacy_URL), sValue);
+		RefreshCvarCache();
+	}
+		
 	//Warn
 	LogError("Warning: It looks like you are using the old %s cvar.  Please update your config files to use our new cvar names.", sCVarName);
 	return Plugin_Handled;
-}
-
-public Action:DelayOldCvars(Handle:timer)
-{
-	//Also register the old cvars for backwards compatibility
-	g_ConVar_URL = CreateConVar("sm_motdredirect_url", "", "Target URL to replace MOTD");
-	
-	HookConVarChange(g_ConVar_URL, Event_CvarChange);
 }
 	
 #if defined _updater_included
@@ -722,10 +732,20 @@ RefreshCvarCache()
 	decl String:szGameProfile[32];
 	GetGameWebDir(szGameProfile, sizeof(szGameProfile));
 	
-	// "http://motd.pinion.gg/motd/COMMUNITYNAME/GAME/motd.html"
-	Format(g_BaseURL, sizeof(g_BaseURL), "http://motd.pinion.gg/motd/%s/%s/motd.html",
-		szCommunityName,
-		szGameProfile);
+	if  (StrEqual(szCommunityName, "", false) && !StrEqual(g_Legacy_URL, "", false))
+		{
+			// Build and cache url/ip/port string
+			new hostip = GetConVarInt(FindConVar("hostip"));
+			new hostport = GetConVarInt(FindConVar("hostport"));
+			Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d",
+				g_Legacy_URL,
+				hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
+				hostport);
+		}
+	else
+		Format(g_BaseURL, sizeof(g_BaseURL), "http://motd.pinion.gg/motd/%s/%s/motd.html",
+			szCommunityName,
+			szGameProfile); // "http://motd.pinion.gg/motd/COMMUNITYNAME/GAME/motd.html"
 		
 	//if (StrContains(g_BaseURL, "http://", false) != 0 && StrContains(g_BaseURL, "https://", false) != 0)
 	//	strcopy(g_BaseURL, sizeof(g_BaseURL), "https://unikrn.com/sites/um100?");
@@ -825,15 +845,19 @@ stock GetGameWebDir(String:output[], size)
 	GetGameFolderName(szGameDir, sizeof(szGameDir));
 	UTIL_StringToLower(szGameDir);
 
-	if (!strcmp(szGameDir, "cstrike") 
-		|| !strcmp(szGameDir, "hl2mp")
-		|| !strcmp(szGameDir, "dod")
-		|| !strcmp(szGameDir, "tf")
-		|| !strcmp(szGameDir, "left4dead2")
-		|| !strcmp(szGameDir, "nucleardawn")
-		|| !strcmp(szGameDir, "csgo")
+	if (!strcmp(szGameDir, "csgo")
 		|| !strcmp(szGameDir, "nmrih"))
 		Format(output, size, "%s", szGameDir);
+	else if (!strcmp(szGameDir, "nucleardawn"))
+		Format(output, size, "nd");
+	else if (!strcmp(szGameDir, "hl2mp"))
+		Format(output, size, "hl2dm");
+	else if (!strcmp(szGameDir, "dod"))
+		Format(output, size, "dods");
+	else if (!strcmp(szGameDir, "cstrike"))
+		Format(output, size, "css");
+	else if (!strcmp(szGameDir, "left4dead2"))
+		Format(output, size, "l4d2");
 	else
 		Format(output, size, "tf", szGameDir);
 }
