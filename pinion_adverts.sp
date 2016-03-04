@@ -21,11 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.00"
+#define PLUGIN_VERSION "1.16.1"
 /*
 Changelog
 	
-	1.16.00 <-> 2016 1/12 - Caelan Borowiec
+	1.16.1 <-> 2016 3/4 - Caelan Borowiec
+			- Fixed tf/tf2 string issue
+	1.16.0 <-> 2016 1/12 - Caelan Borowiec
 		Updated all cvars to follow the naming convention sm_pinion_adverts_*
 			- New version cvar: sm_pinion_adverts_version
 			- See config for other cvars
@@ -859,7 +861,7 @@ stock GetGameWebDir(String:output[], size)
 	else if (!strcmp(szGameDir, "left4dead2"))
 		Format(output, size, "l4d2");
 	else
-		Format(output, size, "tf", szGameDir);
+		Format(output, size, "tf2", szGameDir);
 }
 
 // Extended ShowMOTDPanel with options for Command and Show
