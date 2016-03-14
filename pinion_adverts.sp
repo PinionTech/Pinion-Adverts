@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.01"
+#define PLUGIN_VERSION "1.16.02"
 /*
 Changelog
 	
+	1.16.02 <-> 2016 3/12 - Caelan Borowiec
+			- Re-added server IP and port data to the url path
 	1.16.01 <-> 2016 3/4 - Caelan Borowiec
 			- Fixed tf/tf2 string issue
 	1.16.0 <-> 2016 1/12 - Caelan Borowiec
@@ -734,21 +736,25 @@ RefreshCvarCache()
 	decl String:szGameProfile[32];
 	GetGameWebDir(szGameProfile, sizeof(szGameProfile));
 	
+	new hostip = GetConVarInt(FindConVar("hostip"));
+	new hostport = GetConVarInt(FindConVar("hostport"));
+	
 	if  (StrEqual(szCommunityName, "", false) && !StrEqual(g_Legacy_URL, "", false))
 		{
 			// Build and cache url/ip/port string
-			new hostip = GetConVarInt(FindConVar("hostip"));
-			new hostport = GetConVarInt(FindConVar("hostport"));
 			Format(g_BaseURL, sizeof(g_BaseURL), "%s?ip=%d.%d.%d.%d&po=%d",
 				g_Legacy_URL,
 				hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
 				hostport);
 		}
 	else
-		Format(g_BaseURL, sizeof(g_BaseURL), "http://motd.pinion.gg/motd/%s/%s/motd.html",
+	{
+		Format(g_BaseURL, sizeof(g_BaseURL), "http://motd.pinion.gg/motd/%s/%s/motd.html?ip=%d.%d.%d.%d&po=%d",
 			szCommunityName,
-			szGameProfile); // "http://motd.pinion.gg/motd/COMMUNITYNAME/GAME/motd.html"
-		
+			szGameProfile,
+			hostip >>> 24 & 255, hostip >>> 16 & 255, hostip >>> 8 & 255, hostip & 255,
+			hostport); // "http://motd.pinion.gg/motd/COMMUNITYNAME/GAME/motd.html"
+	}
 	//if (StrContains(g_BaseURL, "http://", false) != 0 && StrContains(g_BaseURL, "https://", false) != 0)
 	//	strcopy(g_BaseURL, sizeof(g_BaseURL), "https://unikrn.com/sites/um100?");
 		
