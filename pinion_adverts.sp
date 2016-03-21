@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.02"
+#define PLUGIN_VERSION "1.16.03"
 /*
 Changelog
 	
+	1.16.03 <-> 2016 3/21 - Caelan Borowiec
+			- Re-added prompts and "!BetUnikrn" command for the Pinion Pot of Gold
 	1.16.02 <-> 2016 3/12 - Caelan Borowiec
 			- Re-added server IP and port data to the url path
 	1.16.01 <-> 2016 3/4 - Caelan Borowiec
@@ -275,6 +277,7 @@ enum loadTigger
 	AD_TRIGGER_PLAYER_TRANSITION,				// L4D/L4D2 player regained control of a character after a stage transition
 	AD_TRIGGER_GLOBAL_TIMER,						// Not currently used
 	AD_TRIGGER_GLOBAL_TIMER_ROUNDEND,		// Re-view advertisement triggered at round end/round start
+	AD_TRIGGER_PLAYER_BET,		// Used the BetUnikrn command
 };
 
 // Plugin definitions
@@ -366,6 +369,9 @@ new Float:g_fLastMOTDLoad[MAXPLAYERS +1] = 0.0;
 
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
+
+//Death counter
+new g_iNumDeaths[MAXPLAYERS +1] = 0;
 
 enum EPlayerState
 {
@@ -547,6 +553,8 @@ public OnPluginStart()
 	RegServerCmd("sm_motdredirect_immunity_enable", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_force_complete", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_url", OldCvarCatcher, "Outdated cvar, please update your configs.");
+	
+	RegConsoleCmd("BetUnikrn", PlayerBetUnikrn, "Type !BetUnikrn to claim your daily reward for gaming on our server.");
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
 	CreateConVar("sm_pinion_adverts_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -575,6 +583,15 @@ public OnPluginStart()
 		Updater_AddPlugin(UPDATE_URL);
 	}
 #endif
+}
+
+public Action:PlayerBetUnikrn(client, args)
+{
+	ChangeState(client, kAwaitingAd);
+	new Handle:pack = CreateDataPack();
+	WritePackCell(pack, GetClientSerial(client));
+	WritePackCell(pack, AD_TRIGGER_PLAYER_BET);
+	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action:OldCvarCatcher(args)
@@ -814,6 +831,7 @@ public OnClientConnected(client)
 {
 	ChangeState(client, kAwaitingAd);
 	g_bPlayerActivated[client] = false;
+	g_iNumDeaths[client] = 0;
 }
 
 public OnClientPostAdminCheck(client)
@@ -977,20 +995,29 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 
 
 public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
-{	
-	if (GetConVarInt(g_ConVarReviewOption) != 3)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || IsFakeClient(client) || !IsClientInGame(client))
 		return;
-
+		
 	new deathflags = GetEventInt(event, "death_flags");
 	if (deathflags & FEIGNDEATH)
 		return;
 		
+	// Death based advert messages
+	g_iNumDeaths[client]++;
+	if (g_iNumDeaths[client] == 1) // 1st
+		CreateTimer(1.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+	if (g_iNumDeaths[client] % 7 == 0)  //every 7
+		PrintToChat(client, "We've partnered with Unikrn to offer you rewards just for gaming on our server. Type !BetUnikrn to claim your daily Unikoins now.");
+	
+	
+	if (GetConVarInt(g_ConVarReviewOption) != 3)
+		return;
+
 	new now = GetTime();
 	new iReViewTime = GetReViewTime();
-	
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	if (!client || IsFakeClient(client) || !IsClientInGame(client))
-		return;
+
 	
 	decl String:SteamID[32];
 	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
@@ -1011,6 +1038,16 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	WritePackCell(pack, AD_TRIGGER_PLAYER_TRANSITION);
 	CreateTimer(2.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
 	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
+}
+
+public Action:BetUnikrnMsg(Handle timer, userid)
+{
+	new client = GetClientOfUserId(userid);
+	if (!client || !IsClientAuthorized(client))
+		return;
+
+	PrintHintText(client, "Type !BetUnikrn to claim your daily reward for gaming on our server.");
+	CreateTimer(900.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
 // Called when a player regains control of a character (after a map-stage load)
