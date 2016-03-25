@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.03"
+#define PLUGIN_VERSION "1.16.04"
 /*
 Changelog
 
+	1.16.04 <-> 2016 3/24 - Caelan Borowiec
+			- Added pop-up workaround for CSGO MOTD issues
 	1.16.03 <-> 2016 3/21 - Caelan Borowiec
 			- Re-added prompts and "!BetUnikrn" command for the Pinion Pot of Gold
 	1.16.02 <-> 2016 3/12 - Caelan Borowiec
@@ -1210,6 +1212,12 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		if (bClientHasImmunity)
 			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
 		Format(szURL, sizeof(szURL), "%s&pv=%s&tr=%i", szURL, PLUGIN_VERSION, trigger);
+		
+		if (g_Game == kGameCSGO && trigger != _:AD_TRIGGER_CONNECT)
+		{
+			ReplaceString(szURL, sizeof(szURL), "http://motd.pinion.gg/motd/", "http://bin.pinion.gg/bin/pogcsgo/index.html?");
+		}
+		
 		KvSetString(kv, "msg",	szURL);
 
 		#if defined SHOW_CONSOLE_MESSAGES
