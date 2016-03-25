@@ -21,10 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.04"
+#define PLUGIN_VERSION "1.16.05"
 /*
 Changelog
 
+	1.16.05 <-> 2016 3/25 - Caelan Borowiec
+			- Made unikrn command lower case
+			- Chat message is now also printed on first death
 	1.16.04 <-> 2016 3/24 - Caelan Borowiec
 			- Added pop-up workaround for CSGO MOTD issues
 	1.16.03 <-> 2016 3/21 - Caelan Borowiec
@@ -556,7 +559,8 @@ public OnPluginStart()
 	RegServerCmd("sm_motdredirect_force_complete", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_url", OldCvarCatcher, "Outdated cvar, please update your configs.");
 
-	RegConsoleCmd("BetUnikrn", PlayerBetUnikrn, "Type !BetUnikrn to claim your daily reward for gaming on our server.");
+	RegConsoleCmd("betunikrn", PlayerBetUnikrn, "Type !betunikrn to claim your daily reward for gaming on our server.");
+
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
 	CreateConVar("sm_pinion_adverts_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -1010,8 +1014,8 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	g_iNumDeaths[client]++;
 	if (g_iNumDeaths[client] == 1) // 1st
 		CreateTimer(1.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
-	if (g_iNumDeaths[client] % 7 == 0)  //every 7
-		PrintToChat(client, "We've partnered with Unikrn to offer you rewards just for gaming on our server. Type !BetUnikrn to claim your daily Unikoins now.");
+	if (g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1)  //every 7
+		PrintToChat(client, "We've partnered with Unikrn to offer you rewards just for gaming on our server. Type !betunikrn to claim your daily Unikoins now.");
 
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
@@ -1048,7 +1052,7 @@ public Action:BetUnikrnMsg(Handle timer, userid)
 	if (!client || !IsClientAuthorized(client))
 		return;
 
-	PrintHintText(client, "Type !BetUnikrn to claim your daily reward for gaming on our server.");
+	PrintHintText(client, "Type !betunikrn to claim your daily reward for gaming on our server.");
 	CreateTimer(900.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
