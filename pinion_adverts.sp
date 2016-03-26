@@ -21,15 +21,18 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.06"
+#define PLUGIN_VERSION "1.16.07"
 /*
 Changelog
 
+	1.16.07 <-> 2016 3/25 - Caelan Borowiec
+			- Switched to using a chat hook for the BetUnikrn command
+			- BetUnikrn command is no longer case sensitive
 	1.16.06 <-> 2016 3/25 - Caelan Borowiec
-			- Set return value for betunikrn command
+			- Set return value for BetUnikrn command
 			- Increased url string length
 	1.16.05 <-> 2016 3/25 - Caelan Borowiec
-			- Made betunikrn command lower case
+			- Made BetUnikrn command lower case
 			- Chat message is now also printed on first death
 	1.16.04 <-> 2016 3/24 - Caelan Borowiec
 			- Added pop-up workaround for CSGO MOTD issues
@@ -562,7 +565,8 @@ public OnPluginStart()
 	RegServerCmd("sm_motdredirect_force_complete", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_url", OldCvarCatcher, "Outdated cvar, please update your configs.");
 
-	RegConsoleCmd("betunikrn", PlayerBetUnikrn, "Type !betunikrn to claim your daily reward for gaming on our server.");
+
+	HookEvent("player_say", FuncChatHook);
 
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
@@ -594,15 +598,21 @@ public OnPluginStart()
 #endif
 }
 
-public Action:PlayerBetUnikrn(client, args)
+public Action:FuncChatHook(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	ChangeState(client, kAwaitingAd);
-	new Handle:pack = CreateDataPack();
-	WritePackCell(pack, GetClientSerial(client));
-	WritePackCell(pack, AD_TRIGGER_PLAYER_BET);
-	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
-	
-	return Plugin_Handled;
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	decl String:strChat[256]; 
+	GetEventString(event, "text", strChat, sizeof(strChat));
+
+	if (StrContains(strChat, "!BetUnikrn", false) == 0)
+	{
+		ChangeState(client, kAwaitingAd);
+		new Handle:pack = CreateDataPack();
+		WritePackCell(pack, GetClientSerial(client));
+		WritePackCell(pack, AD_TRIGGER_PLAYER_BET);
+		CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	}
+	return Plugin_Continue; 
 }
 
 public Action:OldCvarCatcher(args)
@@ -1020,7 +1030,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	if (g_iNumDeaths[client] == 1) // 1st
 		CreateTimer(1.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 	if (g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1)  //every 7
-		PrintToChat(client, "We've partnered with Unikrn to offer you rewards just for gaming on our server. Type !betunikrn to claim your daily Unikoins now.");
+		PrintToChat(client, "We've partnered with Unikrn to offer you rewards just for gaming on our server. Type !BetUnikrn to claim your daily Unikoins now.");
 
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
@@ -1057,7 +1067,7 @@ public Action:BetUnikrnMsg(Handle timer, userid)
 	if (!client || !IsClientAuthorized(client))
 		return;
 
-	PrintHintText(client, "Type !betunikrn to claim your daily reward for gaming on our server.");
+	PrintHintText(client, "Type !BetUnikrn to claim your daily reward for gaming on our server.");
 	CreateTimer(900.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
