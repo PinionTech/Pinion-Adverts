@@ -21,12 +21,15 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.05"
+#define PLUGIN_VERSION "1.16.06"
 /*
 Changelog
 
+	1.16.06 <-> 2016 3/25 - Caelan Borowiec
+			- Set return value for betunikrn command
+			- Increased url string length
 	1.16.05 <-> 2016 3/25 - Caelan Borowiec
-			- Made unikrn command lower case
+			- Made betunikrn command lower case
 			- Chat message is now also printed on first death
 	1.16.04 <-> 2016 3/24 - Caelan Borowiec
 			- Added pop-up workaround for CSGO MOTD issues
@@ -598,6 +601,8 @@ public Action:PlayerBetUnikrn(client, args)
 	WritePackCell(pack, GetClientSerial(client));
 	WritePackCell(pack, AD_TRIGGER_PLAYER_BET);
 	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	
+	return Plugin_Handled;
 }
 
 public Action:OldCvarCatcher(args)
@@ -1211,7 +1216,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthId(client, AuthId_Steam2, szAuth, sizeof(szAuth));
 
-		decl String:szURL[128];
+		decl String:szURL[256];
 		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
 		if (bClientHasImmunity)
 			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
