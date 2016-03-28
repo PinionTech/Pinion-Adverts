@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.07"
+#define PLUGIN_VERSION "1.16.08"
 /*
 Changelog
 
+	1.16.08 <-> 2016 3/28 - Caelan Borowiec
+			- Renamed BetUnikrn command to "RewardMe"
 	1.16.07 <-> 2016 3/25 - Caelan Borowiec
 			- Switched to using a chat hook for the BetUnikrn command
 			- BetUnikrn command is no longer case sensitive
@@ -604,7 +606,7 @@ public Action:FuncChatHook(Handle:event, const String:name[], bool:dontBroadcast
 	decl String:strChat[256]; 
 	GetEventString(event, "text", strChat, sizeof(strChat));
 
-	if (StrContains(strChat, "!BetUnikrn", false) == 0)
+	if (StrContains(strChat, "!RewardMe", false) == 0)
 	{
 		ChangeState(client, kAwaitingAd);
 		new Handle:pack = CreateDataPack();
@@ -1030,7 +1032,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	if (g_iNumDeaths[client] == 1) // 1st
 		CreateTimer(1.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 	if (g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1)  //every 7
-		PrintToChat(client, "We've partnered with Unikrn to offer you rewards just for gaming on our server. Type !BetUnikrn to claim your daily Unikoins now.");
+		PrintToChat(client, "We've partnered with Unikrn to reward you just for gaming on our server. Type !RewardMe now to claim your Unikoins.");
 
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
@@ -1067,7 +1069,7 @@ public Action:BetUnikrnMsg(Handle timer, userid)
 	if (!client || !IsClientAuthorized(client))
 		return;
 
-	PrintHintText(client, "Type !BetUnikrn to claim your daily reward for gaming on our server.");
+	PrintHintText(client, "Type !RewardMe to claim your daily reward for gaming on our server.");
 	CreateTimer(900.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
