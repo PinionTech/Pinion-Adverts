@@ -21,10 +21,14 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.08"
+#define PLUGIN_VERSION "1.16.09"
 /*
 Changelog
 
+	1.16.09 <-> 2016 3/30 - Caelan Borowiec
+			- Set RewardMe hint messages to start on first spawn
+			- Colorized RewardMe chat message
+			- Improved the hint message
 	1.16.08 <-> 2016 3/28 - Caelan Borowiec
 			- Renamed BetUnikrn command to "RewardMe"
 	1.16.07 <-> 2016 3/25 - Caelan Borowiec
@@ -383,8 +387,9 @@ new Float:g_fLastMOTDLoad[MAXPLAYERS +1] = 0.0;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 
-//Death counter
+//Death counters
 new g_iNumDeaths[MAXPLAYERS +1] = 0;
+new g_iNumSpawns[MAXPLAYERS +1] = 0;
 
 enum EPlayerState
 {
@@ -840,8 +845,10 @@ SetupReView()
 	}
 	else if (g_Game == kGameInsurgency)
 	{
-		HookEvent("player_first_spawn", Event_FirstSpawn, EventHookMode_PostNoCopy);
+		HookEvent("player_first_spawn", Event_FirstSpawn);
 	}
+	
+	HookEvent("player_spawn", Event_PlayerSpawn);
 
 	HookEventEx("round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 	HookEventEx("round_win", Event_HandleReview, EventHookMode_PostNoCopy);
@@ -855,6 +862,7 @@ public OnClientConnected(client)
 	ChangeState(client, kAwaitingAd);
 	g_bPlayerActivated[client] = false;
 	g_iNumDeaths[client] = 0;
+	g_iNumSpawns[client] = 0;
 }
 
 public OnClientPostAdminCheck(client)
@@ -946,11 +954,26 @@ public Event_FirstSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || IsFakeClient(client) || !IsClientInGame(client))
 		return;
+		
 
 	new Handle:pack = CreateDataPack();
 	WritePackCell(pack, GetClientSerial(client));
 	WritePackCell(pack, AD_TRIGGER_CONNECT);
 	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+
+	return;
+}
+
+public Event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || IsFakeClient(client) || !IsClientInGame(client))
+		return;
+	
+	g_iNumSpawns[client]++;
+	
+	if (g_iNumSpawns[client] == 1)
+		CreateTimer(10.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 
 	return;
 }
@@ -1029,10 +1052,8 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 
 	// Death based advert messages
 	g_iNumDeaths[client]++;
-	if (g_iNumDeaths[client] == 1) // 1st
-		CreateTimer(1.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 	if (g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1)  //every 7
-		PrintToChat(client, "We've partnered with Unikrn to reward you just for gaming on our server. Type !RewardMe now to claim your Unikoins.");
+		PrintToChat(client, "We've partnered with Unikrn to reward you just for gaming on our server. Type \x02!RewardMe\x01 now to claim your Unikoins.");
 
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
@@ -1069,7 +1090,7 @@ public Action:BetUnikrnMsg(Handle timer, userid)
 	if (!client || !IsClientAuthorized(client))
 		return;
 
-	PrintHintText(client, "Type !RewardMe to claim your daily reward for gaming on our server.");
+	PrintHintText(client, "NEW REWARDS PROGRAM\nType !RewardMe to claim your daily Unikoins.");
 	CreateTimer(900.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
