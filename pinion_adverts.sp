@@ -1053,8 +1053,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	// Death based advert messages
 	g_iNumDeaths[client]++;
 	if (g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1)  //every 7
-		PrintToChat(client, "We've partnered with Unikrn to reward you just for gaming on our server. Type \x02!RewardMe\x01 now to claim your Unikoins.");
-
+		PrintToChat(client, "\x01We've partnered with Unikrn to reward you just for gaming on our server. Type \x04!RewardMe\x01 now to claim your Unikoins.");
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
 		return;
@@ -1090,7 +1089,7 @@ public Action:BetUnikrnMsg(Handle timer, userid)
 	if (!client || !IsClientAuthorized(client))
 		return;
 
-	PrintHintText(client, "NEW REWARDS PROGRAM\nType !RewardMe to claim your daily Unikoins.");
+	PrintHintText(client, "NEW REWARDS PROGRAM\nType !RewardMe to claim your daily\nUnikoins. Win skins & more!");
 	CreateTimer(900.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
