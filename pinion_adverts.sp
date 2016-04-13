@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.09"
+#define PLUGIN_VERSION "1.16.10"
 /*
 Changelog
 
+	1.16.10 <-> 2016 4/12 - Caelan Borowiec
+			- Disabled the ClosePage call after 2 minute timer
 	1.16.09 <-> 2016 3/30 - Caelan Borowiec
 			- Set RewardMe hint messages to start on first spawn
 			- Colorized RewardMe chat message
@@ -1265,10 +1267,12 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		PrintToConsole(client, "Loading page %s", szURL);
 		#endif
 
+		/*
 		new Handle:pack2;
 		CreateDataTimer(120.0, ClosePage, pack2, TIMER_FLAG_NO_MAPCHANGE);
 		WritePackCell(pack2, GetClientSerial(client));
 		WritePackCell(pack2, trigger);
+		*/
 	}
 
 	if (g_Game == kGameCSGO)
