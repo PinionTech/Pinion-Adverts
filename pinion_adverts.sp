@@ -5,7 +5,7 @@ See changelog for complete list of authors and contributors
 Description:
 	Causes client to access a webpage when player has chosen a team.  Left 4 Dead will use
 	player left start area / checkpoint.  The url will have have /host_ip/hostport/steamid
-	added to it.  
+	added to it.
 
 Installation:
 	Place compiled plugin (pinion_adverts.smx) into your plugins folder.
@@ -21,10 +21,31 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.02"
+#define PLUGIN_VERSION "1.16.10"
 /*
 Changelog
-	
+
+	1.16.10 <-> 2016 4/12 - Caelan Borowiec
+			- Disabled the ClosePage call after 2 minute timer
+	1.16.09 <-> 2016 3/30 - Caelan Borowiec
+			- Set RewardMe hint messages to start on first spawn
+			- Colorized RewardMe chat message
+			- Improved the hint message
+	1.16.08 <-> 2016 3/28 - Caelan Borowiec
+			- Renamed BetUnikrn command to "RewardMe"
+	1.16.07 <-> 2016 3/25 - Caelan Borowiec
+			- Switched to using a chat hook for the BetUnikrn command
+			- BetUnikrn command is no longer case sensitive
+	1.16.06 <-> 2016 3/25 - Caelan Borowiec
+			- Set return value for BetUnikrn command
+			- Increased url string length
+	1.16.05 <-> 2016 3/25 - Caelan Borowiec
+			- Made BetUnikrn command lower case
+			- Chat message is now also printed on first death
+	1.16.04 <-> 2016 3/24 - Caelan Borowiec
+			- Added pop-up workaround for CSGO MOTD issues
+	1.16.03 <-> 2016 3/21 - Caelan Borowiec
+			- Re-added prompts and "!BetUnikrn" command for the Pinion Pot of Gold
 	1.16.02 <-> 2016 3/12 - Caelan Borowiec
 			- Re-added server IP and port data to the url path
 	1.16.01 <-> 2016 3/4 - Caelan Borowiec
@@ -33,7 +54,7 @@ Changelog
 		Updated all cvars to follow the naming convention sm_pinion_adverts_*
 			- New version cvar: sm_pinion_adverts_version
 			- See config for other cvars
-		Deprecated all old cvars: 
+		Deprecated all old cvars:
 			Old cvar names will still work, but will not be entered into the config, and will log an error
 		Deprecated sm_motdredirect_url cvar
 		Added sm_pinion_adverts_community cvar
@@ -275,6 +296,7 @@ enum loadTigger
 	AD_TRIGGER_PLAYER_TRANSITION,				// L4D/L4D2 player regained control of a character after a stage transition
 	AD_TRIGGER_GLOBAL_TIMER,						// Not currently used
 	AD_TRIGGER_GLOBAL_TIMER_ROUNDEND,		// Re-view advertisement triggered at round end/round start
+	AD_TRIGGER_PLAYER_BET,		// Used the BetUnikrn command
 };
 
 // Plugin definitions
@@ -367,6 +389,10 @@ new Float:g_fLastMOTDLoad[MAXPLAYERS +1] = 0.0;
 // Configuration
 new String:g_BaseURL[PLATFORM_MAX_PATH];
 
+//Death counters
+new g_iNumDeaths[MAXPLAYERS +1] = 0;
+new g_iNumSpawns[MAXPLAYERS +1] = 0;
+
 enum EPlayerState
 {
 	kAwaitingAd,  // have not seen ad yet for this map
@@ -388,7 +414,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	decl String:szGameDir[32];
 	GetGameFolderName(szGameDir, sizeof(szGameDir));
 	UTIL_StringToLower(szGameDir);
-	
+
 	for (new i = 0; i < sizeof(g_SupportedGames); ++i)
 	{
 		if (!strcmp(szGameDir, g_SupportedGames[i]))
@@ -397,16 +423,16 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 			break;
 		}
 	}
-	
+
 	if (g_Game == kGameUnsupported)
 	{
 		strcopy(error, err_max, "This game is currently not supported. To request support, contact us at http://www.pinion.gg/contact.html");
 		return APLRes_Failure;
 	}
-	
+
 	// Backwards compatibility pre csgo/sm1.5
 	MarkNativeAsOptional("GetUserMessageType");
-	
+
 	// Mark Socket natives as optional
 	MarkNativeAsOptional("SocketIsConnected");
 	MarkNativeAsOptional("SocketCreate");
@@ -506,7 +532,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	MarkNativeAsOptional("curl_slist_append");
 	MarkNativeAsOptional("curl_hash_file");
 	MarkNativeAsOptional("curl_hash_string");
-	
+
 	return APLRes_Success;
 }
 
@@ -520,7 +546,7 @@ public OnPluginStart()
 			cURL - http://forums.alliedmods.net/showthread.php?t=152216\n\
 			SteamTools - http://forums.alliedmods.net/showthread.php?t=129763\n\
 			Socket - http://forums.alliedmods.net/showthread.php?t=67640");
-			
+
 	// Disable SteamTools on CSGO since it's not supported:
 	if (g_Game == kGameCSGO)
 		g_bSteamTools = false;
@@ -529,10 +555,10 @@ public OnPluginStart()
 	new UserMsg:VGUIMenu = GetUserMessageId("VGUIMenu");
 	if (VGUIMenu == INVALID_MESSAGE_ID)
 		SetFailState("Failed to find VGUIMenu usermessage");
-	
+
 	HookUserMessage(VGUIMenu, OnMsgVGUIMenu, true);
 	AddCommandListener(PageClosed, "closed_htmlpage");
-	
+
 	// Specify console variables used to configure plugin
 	g_ConVar_Community = CreateConVar("sm_pinion_adverts_community", "", "Community ID");
 	g_ConVarReviewOption = CreateConVar("sm_pinion_adverts_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
@@ -540,13 +566,17 @@ public OnPluginStart()
 	g_ConVarImmunityEnabled = CreateConVar("sm_pinion_adverts_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
 	g_ConVarForceComplete = CreateConVar("sm_pinion_adverts_force_complete", "1", "If set to zero, players may close the MOTD window without any wait period", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");  // Load and create config file with the cvars above
-	
+
 	//If registered as cvars, these will be entered into the config file and/or not read correctly. So lets register them as commands:
 	RegServerCmd("sm_motdredirect_review", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_review_time", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_immunity_enable", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_force_complete", OldCvarCatcher, "Outdated cvar, please update your configs.");
 	RegServerCmd("sm_motdredirect_url", OldCvarCatcher, "Outdated cvar, please update your configs.");
+
+
+	HookEvent("player_say", FuncChatHook);
+
 
 	// Version of plugin - Make visible to game-monitor.com - Dont store in configuration file
 	CreateConVar("sm_pinion_adverts_version", PLUGIN_VERSION, "[SM] MOTD Redirect Version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -555,10 +585,10 @@ public OnPluginStart()
 	RefreshCvarCache();
 	HookConVarChange(g_ConVar_Community, Event_CvarChange);
 	HookConVarChange(g_ConVarForceComplete, Event_CvarChange);
-	
+
 	HookEvent("player_activate", Event_PlayerActivate);
 	HookEvent("player_disconnect", Event_PlayerDisconnected);
-	
+
 	for (new i = 1; i <= MaxClients; ++i)
 	{
 		if (!IsClientInGame(i))
@@ -566,9 +596,9 @@ public OnPluginStart()
 
 		ChangeState(i, kAdDone);
 	}
-	
+
 	SetupReView();
-	
+
 #if defined _updater_included
     if (LibraryExists("updater"))
     {
@@ -577,40 +607,57 @@ public OnPluginStart()
 #endif
 }
 
+public Action:FuncChatHook(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	decl String:strChat[256]; 
+	GetEventString(event, "text", strChat, sizeof(strChat));
+
+	if (StrContains(strChat, "!RewardMe", false) == 0)
+	{
+		ChangeState(client, kAwaitingAd);
+		new Handle:pack = CreateDataPack();
+		WritePackCell(pack, GetClientSerial(client));
+		WritePackCell(pack, AD_TRIGGER_PLAYER_BET);
+		CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+	}
+	return Plugin_Continue; 
+}
+
 public Action:OldCvarCatcher(args)
 {
 	if (args != 1)
 		return Plugin_Stop;
-	
+
 	new String: sCVarName[64];
 	new String: sValue[256];
 	GetCmdArg(0, sCVarName, sizeof(sCVarName));
 	GetCmdArg(1, sValue, sizeof(sValue));
-	
+
 	//ToDo: Add bounds checking here
 	if (StrEqual(sCVarName, "sm_motdredirect_review", false))
 		SetConVarInt(g_ConVarReviewOption, StringToInt(sValue));
-		
+
 	else if (StrEqual(sCVarName, "sm_motdredirect_review_time", false))
 		SetConVarInt(g_ConVarReViewTime, StringToInt(sValue));
-		
+
 	else if (StrEqual(sCVarName, "sm_motdredirect_immunity_enable", false))
 		SetConVarInt(g_ConVarImmunityEnabled, StringToInt(sValue));
-		
+
 	else if (StrEqual(sCVarName, "sm_motdredirect_force_complete", false))
 		SetConVarInt(g_ConVarForceComplete, StringToInt(sValue));
-		
+
 	else if (StrEqual(sCVarName, "sm_motdredirect_url", false))
 	{
 		strcopy(g_Legacy_URL, sizeof(g_Legacy_URL), sValue);
 		RefreshCvarCache();
 	}
-		
+
 	//Warn
 	LogError("Warning: It looks like you are using the old %s cvar.  Please update your config files to use our new cvar names.", sCVarName);
 	return Plugin_Handled;
 }
-	
+
 #if defined _updater_included
 public OnLibraryAdded(const String:name[])
 {
@@ -624,10 +671,10 @@ public OnConfigsExecuted()
 {
 	// Synchronize Cvar Cache after configuration loaded
 	RefreshCvarCache();
-	
+
 	decl String:szInitialBaseURL[128];
 	GetConVarString(g_ConVar_Community, szInitialBaseURL, sizeof(szInitialBaseURL));
-	
+
 	if (StrEqual(szInitialBaseURL, ""))
 		LogError("ConVar sm_pinion_adverts_community has not been set:  Please check your pinion_adverts config file.");
 }
@@ -639,13 +686,13 @@ public OnAllPluginsLoaded()
 	new Handle:hIterator = GetPluginIterator();
 	new Handle:hPlugin = INVALID_HANDLE;
 	new String:sData[128];
-	
+
 	new bool:FoundPlugin = false;
-	
+
 	while (MorePlugins(hIterator))
 	{
 		hPlugin = ReadPlugin(hIterator);
-		
+
 		if (GetPluginInfo(hPlugin, PlInfo_Name, sData, sizeof(sData)))
 		{
 			if (StrEqual(sData, "Open URL MOTD", false))
@@ -662,12 +709,12 @@ public OnAllPluginsLoaded()
 	}
 	CloseHandle(hPlugin);
 	CloseHandle(hIterator);
-	
+
 	if (FoundPlugin == true)
 	{
 		if (FileExists("motd.txt") && !FileExists("motd_backup.txt"))
 			RenameFile("motd.txt", "motd_backup.txt");
-		
+
 		if (!FileExists("motd.txt"))
 		{
 			new Handle:hMOTD = OpenFile("motd.txt", "w");
@@ -682,15 +729,15 @@ public OnAllPluginsLoaded()
 		}
 		SetFailState("This plugin cannot run while %s is loaded.  Please remove \"%s\" to use this plugin.", sData, sData);
 	}
-	
+
 	// Handle the motd_text.txt setup here
 	if (FileExists("motd_text.txt")) // File exists: check contents
 	{
 		new Handle:hMOTD_Text = OpenFile("motd_text.txt", "r");
-		new String:sOldMOTD[2048]; 
+		new String:sOldMOTD[2048];
 		ReadFileString(hMOTD_Text, sOldMOTD, 2048);
 		CloseHandle(hMOTD_Text);
-		
+
 		if (StrContains(sOldMOTD, "Welcome to Team Fortress 2\n\nOur map rotation is:\n-", false) != -1)
 		{
 			if(!FileExists("motd_text_backup.txt"))
@@ -732,13 +779,13 @@ RefreshCvarCache()
 {
 	decl String:szCommunityName[128];
 	GetConVarString(g_ConVar_Community, szCommunityName, sizeof(szCommunityName));
-	
+
 	decl String:szGameProfile[32];
 	GetGameWebDir(szGameProfile, sizeof(szGameProfile));
-	
+
 	new hostip = GetConVarInt(FindConVar("hostip"));
 	new hostport = GetConVarInt(FindConVar("hostport"));
-	
+
 	if  (StrEqual(szCommunityName, "", false) && !StrEqual(g_Legacy_URL, "", false))
 		{
 			// Build and cache url/ip/port string
@@ -757,30 +804,30 @@ RefreshCvarCache()
 	}
 	//if (StrContains(g_BaseURL, "http://", false) != 0 && StrContains(g_BaseURL, "https://", false) != 0)
 	//	strcopy(g_BaseURL, sizeof(g_BaseURL), "https://unikrn.com/sites/um100?");
-		
+
 	g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
 	g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
-	
+
 	g_bForceComplete = GetConVarBool(g_ConVarForceComplete);
-	
+
 	g_bIsQuickplayActive =  (g_ConVarQuickPlayReg != INVALID_HANDLE && g_ConVarQuickPlayDisabled != INVALID_HANDLE && GetConVarBool(g_ConVarQuickPlayReg) && !GetConVarBool(g_ConVarQuickPlayDisabled));
 }
 
 SetupReView()
 {
 	g_hPlayerLastViewedAd = CreateTrie();
-	
+
 	if (g_Game == kGameTF2)
 	{
 		HookEvent("teamplay_round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 		HookEvent("teamplay_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);	// Change to teamplay_round_win?
 		HookEvent("arena_win_panel", Event_HandleReview, EventHookMode_PostNoCopy);
-		
+
 		g_ConVarQuickPlayReg = FindConVar("sv_registration_successful");
 		g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
-		
+
 		g_bIsQuickplayActive =  (g_ConVarQuickPlayReg != INVALID_HANDLE && g_ConVarQuickPlayDisabled != INVALID_HANDLE && GetConVarBool(g_ConVarQuickPlayReg) && !GetConVarBool(g_ConVarQuickPlayDisabled));
-			
+
 		HookConVarChange(g_ConVarQuickPlayReg, Event_CvarChange);
 		HookConVarChange(g_ConVarQuickPlayDisabled, Event_CvarChange);
 	}
@@ -800,13 +847,15 @@ SetupReView()
 	}
 	else if (g_Game == kGameInsurgency)
 	{
-		HookEvent("player_first_spawn", Event_FirstSpawn, EventHookMode_PostNoCopy);
+		HookEvent("player_first_spawn", Event_FirstSpawn);
 	}
 	
+	HookEvent("player_spawn", Event_PlayerSpawn);
+
 	HookEventEx("round_start", Event_HandleReview, EventHookMode_PostNoCopy);
 	HookEventEx("round_win", Event_HandleReview, EventHookMode_PostNoCopy);
 	HookEventEx("round_end", Event_HandleReview, EventHookMode_PostNoCopy);
-	
+
 	HookEventEx("player_death", Event_PlayerDeath);
 }
 
@@ -814,6 +863,8 @@ public OnClientConnected(client)
 {
 	ChangeState(client, kAwaitingAd);
 	g_bPlayerActivated[client] = false;
+	g_iNumDeaths[client] = 0;
+	g_iNumSpawns[client] = 0;
 }
 
 public OnClientPostAdminCheck(client)
@@ -822,12 +873,12 @@ public OnClientPostAdminCheck(client)
 	{
 		if (IsFakeClient(client) || (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
 			return;
-		
+
 		new Handle:pack = CreateDataPack();
 		WritePackCell(pack, GetClientSerial(client));
 		WritePackCell(pack, AD_TRIGGER_CONNECT);
 		CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
-		
+
 		return;
 	}
 }
@@ -905,12 +956,27 @@ public Event_FirstSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || IsFakeClient(client) || !IsClientInGame(client))
 		return;
-	
+		
+
 	new Handle:pack = CreateDataPack();
 	WritePackCell(pack, GetClientSerial(client));
 	WritePackCell(pack, AD_TRIGGER_CONNECT);
 	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+
+	return;
+}
+
+public Event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || IsFakeClient(client) || !IsClientInGame(client))
+		return;
 	
+	g_iNumSpawns[client]++;
+	
+	if (g_iNumSpawns[client] == 1)
+		CreateTimer(10.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+
 	return;
 }
 
@@ -918,22 +984,22 @@ public Event_HandleReview(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if (!IsReViewEnabled())
 		return;
-	
+
 	new iEventChoice = GetConVarInt(g_ConVarReviewOption);
 	if	(
-		( (StrEqual(name, "teamplay_round_start", false) || StrEqual(name, "dod_round_start", false)  || StrEqual(name, "round_start", false)   || StrEqual(name, "game_round_start", false) ) && iEventChoice != 1) || 
+		( (StrEqual(name, "teamplay_round_start", false) || StrEqual(name, "dod_round_start", false)  || StrEqual(name, "round_start", false)   || StrEqual(name, "game_round_start", false) ) && iEventChoice != 1) ||
 		( (StrEqual(name, "teamplay_win_panel", false) || StrEqual(name, "arena_win_panel", false) || StrEqual(name, "dod_round_win", false) || StrEqual(name, "round_win", false) || StrEqual(name, "round_end", false)  || StrEqual(name, "game_round_end", false) ) && iEventChoice != 2)
 		)
 	{
 		return;
 	}
-	
+
 	if (g_iLastAdWave == -1) // Time counter has been reset or has not started.  Start it now.
 	{
 		g_iLastAdWave = GetTime();
 		return; //Skip this advertisement wave
 	}
-	
+
 	new iReViewTime = GetReViewTime();
 	if  ((GetTime() - g_iLastAdWave) > iReViewTime)
 	{
@@ -977,31 +1043,37 @@ public Action:Event_PlayerDisconnected(Handle:event, const String:name[], bool:d
 
 
 public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
-{	
-	if (GetConVarInt(g_ConVarReviewOption) != 3)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!client || IsFakeClient(client) || !IsClientInGame(client))
 		return;
 
 	new deathflags = GetEventInt(event, "death_flags");
 	if (deathflags & FEIGNDEATH)
 		return;
-		
+
+	// Death based advert messages
+	g_iNumDeaths[client]++;
+	if (g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1)  //every 7
+		PrintToChat(client, "\x01We've partnered with Unikrn to reward you just for gaming on our server. Type \x04!RewardMe\x01 now to claim your Unikoins.");
+
+	if (GetConVarInt(g_ConVarReviewOption) != 3)
+		return;
+
 	new now = GetTime();
 	new iReViewTime = GetReViewTime();
-	
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	if (!client || IsFakeClient(client) || !IsClientInGame(client))
-		return;
-	
+
+
 	decl String:SteamID[32];
 	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
-	
+
 	new iLastAdView;
 	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, iLastAdView))
 	{
 		SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 		return;
 	}
-	
+
 	if ((now - iLastAdView) < iReViewTime)
 		return;
 
@@ -1013,34 +1085,44 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 }
 
+public Action:BetUnikrnMsg(Handle timer, userid)
+{
+	new client = GetClientOfUserId(userid);
+	if (!client || !IsClientAuthorized(client))
+		return;
+
+	PrintHintText(client, "NEW REWARDS PROGRAM\nType !RewardMe to claim your daily\nUnikoins. Win skins & more!");
+	CreateTimer(900.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+}
+
 // Called when a player regains control of a character (after a map-stage load)
 // This is *not* called when a player initially connects
 // This is called for each player on the server
 public Action:Event_PlayerTransitioned(Handle:event, const String:name[], bool:dontBroadcast)
-{	
+{
 	if (!IsReViewEnabled())
 		return;
-		
+
 	new now = GetTime();
 	new iReViewTime = GetReViewTime();
-	
+
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || !IsClientAuthorized(client))
 		return;
-	
+
 	decl String:SteamID[32];
 	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
-	
+
 	new iLastAdView;
 	if (!GetTrieValue(g_hPlayerLastViewedAd, SteamID, iLastAdView))
 	{
 		SetTrieValue(g_hPlayerLastViewedAd, SteamID, GetTime());
 		return;
 	}
-	
+
 	if (!IsClientInGame(client) || IsFakeClient(client))
 		return;
-	
+
 	if ((now - iLastAdView) < iReViewTime)
 		return;
 
@@ -1064,15 +1146,15 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], player
 		PbReadString(self, "name", buffer, sizeof(buffer));
 	else
 		BfReadString(self, buffer, sizeof(buffer));
-	
+
 	if (strcmp(buffer, "info") != 0)
 			return Plugin_Continue;
-	
+
 	new Handle:pack = CreateDataPack();
 	WritePackCell(pack, GetClientSerial(players[0]));
 	WritePackCell(pack, AD_TRIGGER_CONNECT);
 	CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
-	
+
 	return Plugin_Handled;
 }
 
@@ -1080,11 +1162,11 @@ public Action:PageClosed(client, const String:command[], argc)
 {
 	if (client == 0 || !IsClientInGame(client))
 		return Plugin_Handled;
-		
+
 	#if defined SHOW_CONSOLE_MESSAGES
 	PrintToConsole(client, "Command closed_htmlpage detected.");
 	#endif
-	
+
 	switch (GetState(client))
 	{
 		case kAdDone:
@@ -1102,7 +1184,7 @@ public Action:PageClosed(client, const String:command[], argc)
 		{
 			ChangeState(client, kAdDone);
 			CreateTimer(0.1, Event_DoPageHit, GetClientSerial(client));
-			
+
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
@@ -1113,7 +1195,7 @@ public Action:PageClosed(client, const String:command[], argc)
 			}
 		}
 	}
-	
+
 	return Plugin_Handled;
 }
 
@@ -1124,17 +1206,17 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	new client = GetClientFromSerial(ReadPackCell(pack));
 	new trigger = ReadPackCell(pack);
 	CloseHandle(pack);
-	
+
 	if (!client || (g_Game == kGameCSGO && GetState(client) == kViewingAd))
 		return Plugin_Stop;
-	
+
 	new bool:bClientHasImmunity = false;
 	if (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION))
 		bClientHasImmunity = true;
-	
+
 	if (bClientHasImmunity && trigger != _:AD_TRIGGER_UNDEFINED && trigger != _:AD_TRIGGER_CONNECT)
 		return Plugin_Stop; //Cancel re-view ads
-	
+
 	new Handle:kv = CreateKeyValues("data");
 
 	if (BGameUsesVGUIEnum())
@@ -1150,11 +1232,11 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 	{
 		new timeleft;
 		GetMapTimeLeft(timeleft);
-		
+
 		new String:SteamID[32];
 		GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
 		g_fPlayerCooldownStartedAt[client] = GetGameTime();
-		
+
 		new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && g_bIsQuickplayActive == false && g_bForceComplete);
 		if ((timeleft > 120 || timeleft < 0) && g_bIsMapActive && bUseCooldown && IsClientInForcedCooldown(client) && !g_bIsQueryRunning[client])
 		{
@@ -1164,37 +1246,45 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 			#endif
 			CreateTimer(1.0, DelayQuery, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		}
-		
+
 		decl String:szAuth[MAX_AUTH_LENGTH];
 		GetClientAuthId(client, AuthId_Steam2, szAuth, sizeof(szAuth));
-		
-		decl String:szURL[128];
+
+		decl String:szURL[256];
 		Format(szURL, sizeof(szURL), "%s&si=%s", g_BaseURL, szAuth);
 		if (bClientHasImmunity)
 			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
 		Format(szURL, sizeof(szURL), "%s&pv=%s&tr=%i", szURL, PLUGIN_VERSION, trigger);
-		KvSetString(kv, "msg",	szURL);
 		
+		if (g_Game == kGameCSGO && trigger != _:AD_TRIGGER_CONNECT)
+		{
+			ReplaceString(szURL, sizeof(szURL), "http://motd.pinion.gg/motd/", "http://bin.pinion.gg/bin/pogcsgo/index.html?");
+		}
+		
+		KvSetString(kv, "msg",	szURL);
+
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Loading page %s", szURL);
 		#endif
-		
+
+		/*
 		new Handle:pack2;
 		CreateDataTimer(120.0, ClosePage, pack2, TIMER_FLAG_NO_MAPCHANGE);
 		WritePackCell(pack2, GetClientSerial(client));
 		WritePackCell(pack2, trigger);
+		*/
 	}
 
 	if (g_Game == kGameCSGO)
 	{
 		KvSetString(kv, "title", MOTD_TITLE);
 	}
-	
+
 	KvSetNum(kv, "type", MOTDPANEL_TYPE_URL);
-	
+
 	ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 	CloseHandle(kv);
-	
+
 
 	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (bUseCooldown && GetState(client) != kViewingAd)
@@ -1205,7 +1295,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		WritePackCell(data, GetClientSerial(client));
 		WritePackFloat(data, GetGameTime());
 	}
-	
+
 	if (!bUseCooldown)
 		ChangeState(client, kAdClosing);
 	else
@@ -1229,8 +1319,8 @@ public bool:IsClientInForcedCooldown(client)
 	#if defined SHOW_CONSOLE_MESSAGES
 	PrintToConsole(client, "Checking forced cooldown.");
 	#endif
-	
-	
+
+
 	if (g_iDynamicDisplayTime[client] != 0)
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
@@ -1238,7 +1328,7 @@ public bool:IsClientInForcedCooldown(client)
 		#endif
 		return false; // Backend has responded
 	}
-	
+
 	new bool:bClientHasImmunity = (GetConVarBool(g_ConVarImmunityEnabled) && CheckCommandAccess(client, "advertisement_immunity", ADMFLAG_RESERVATION));
 	new bool:bUseCooldown = (g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D && !bClientHasImmunity);
 	if (!bUseCooldown)
@@ -1248,7 +1338,7 @@ public bool:IsClientInForcedCooldown(client)
 		#endif
 		return false;	//Cooldown does not apply to this target
 	}
-	
+
 	if (g_fPlayerCooldownStartedAt[client] != 0)
 	{
 		new timeleft = DEF_COOLDOWN - RoundToFloor(GetGameTime() - g_fPlayerCooldownStartedAt[client]);
@@ -1267,10 +1357,10 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
-	
+
 	if (!client)
 		return;
-	
+
 	if (GetState(client) == kAdClosing || GetState(client) == kViewingAd)	//Ad is loaded
 	{
 		if (GetClientTeam(client) != 0 || g_Game == kGameNMRIH) // player has joined a team
@@ -1284,7 +1374,7 @@ public Action:ClosePage(Handle:timer, Handle:pack)
 ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show=true, usermessageFlags=0)
 {
 	new Handle:msg = StartMessageOne("VGUIMenu", client, usermessageFlags);
-	
+
 	if (GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
 	{
 		PbSetString(msg, "name", name);
@@ -1299,7 +1389,7 @@ ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show
 				decl String:key[128], String:value[128];
 				KvGetSectionName(kv, key, sizeof(key));
 				KvGetString(kv, NULL_STRING, value, sizeof(value), "");
-				
+
 				subkey = PbAddMessage(msg, "subkeys");
 				PbSetString(subkey, "name", key);
 				PbSetString(subkey, "str", value);
@@ -1311,13 +1401,13 @@ ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show
 	{
 		BfWriteString(msg, name);
 		BfWriteByte(msg, show);
-		
+
 		if (kv == INVALID_HANDLE)
 		{
 			BfWriteByte(msg, 0);
 		}
 		else
-		{	
+		{
 			if (!KvGotoFirstSubKey(kv, false))
 			{
 				BfWriteByte(msg, 0);
@@ -1329,9 +1419,9 @@ ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show
 				{
 					++keyCount;
 				} while (KvGotoNextKey(kv, false));
-				
+
 				BfWriteByte(msg, keyCount);
-				
+
 				if (keyCount > 0)
 				{
 					KvGoBack(kv);
@@ -1341,7 +1431,7 @@ ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show
 						decl String:key[128], String:value[128];
 						KvGetSectionName(kv, key, sizeof(key));
 						KvGetString(kv, NULL_STRING, value, sizeof(value), "");
-						
+
 						BfWriteString(msg, key);
 						BfWriteString(msg, value);
 					} while (KvGotoNextKey(kv, false));
@@ -1349,37 +1439,37 @@ ShowVGUIPanelEx(client, const String:name[], Handle:kv=INVALID_HANDLE, bool:show
 			}
 		}
 	}
-	
+
 	EndMessage();
 }
 
 public Action:Timer_Restrict(Handle:timer, Handle:data)
 {
 	ResetPack(data);
-	
+
 	new client = GetClientFromSerial(ReadPackCell(data));
 	if (client == 0)
 		return Plugin_Stop;
-	
+
 	if (!g_bPlayerActivated[client])
 		return Plugin_Continue;
-	
+
 	new Float:flStartTime = ReadPackFloat(data);
-	
+
 	new iCooldown = DEF_COOLDOWN; // Default cooldown
 	/*
 	if (g_iDynamicDisplayTime[client] > 0) //Got a valid time back from the backend
 	{
 		iCooldown = g_iDynamicDisplayTime[client]; // Use backend's value
 	}
-	else 
+	else
 	*/
 	if (g_iDynamicDisplayTime[client] <= 0) //Backend said there was nothing
 	{
 		iCooldown = 0; // Ditch the cooldown
 	}
 	//else // The backend didn't respond with anything valid!
-	
+
 	new timeleft = iCooldown - RoundToFloor(GetGameTime() - flStartTime);
 	if (timeleft > 0)
 	{
@@ -1395,23 +1485,23 @@ public Action:Timer_Restrict(Handle:timer, Handle:data)
 				KvSetNum(kv, "cmd", MOTDPANEL_CMD_NONE);
 				ShowVGUIPanelEx(client, "info", kv, true, USERMSG_BLOCKHOOKS|USERMSG_RELIABLE);
 				CloseHandle(kv);
-				
+
 				g_fLastMOTDLoad[client] = GetGameTime();
 			}
 		}
 		else
 			ShowMOTDPanelEx(client, MOTD_TITLE, "", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
-		
+
 		if (g_iDynamicDisplayTime[client] > 0)
 			PrintToConsole(client, "You may continue in %d seconds.", timeleft);
 		else
 			PrintToConsole(client, "Loading...");
-		
+
 		return Plugin_Continue;
 	}
-	
+
 	ChangeState(client, kAdClosing);
-	
+
 	return Plugin_Stop;
 }
 
@@ -1467,17 +1557,17 @@ GetClientAdvertDelayEasyHTTP(client)
 {
 	if (client == 0)
 		return;
-	
+
 	new String:sQueryURL[84] = "http://adback.pinion.gg/v2/duration/";
 	new String:SteamID[32];
 	GetClientAuthId(client, AuthId_Steam2, SteamID, sizeof(SteamID));
-	
+
 	StrCat(sQueryURL, sizeof(sQueryURL), SteamID);
-	
+
 	#if defined SHOW_CONSOLE_MESSAGES
 	PrintToConsole(client, "\n\nQuerying URL: %s", sQueryURL);
 	#endif
-	
+
 	// Request a customized ad delay for the client
 	if(!EasyHTTP(sQueryURL, GET, INVALID_HANDLE, Helper_GetAdStatus_Complete, GetClientUserId(client)))
 	{
@@ -1495,11 +1585,11 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 	new client = GetClientOfUserId(userid);
 	if(!client || !IsClientInGame(client))
 		return;
-		
+
 	#if defined SHOW_CONSOLE_MESSAGES
 	PrintToConsole(client, "Query #%i returned '%s'", g_iNumQueryAttempts[client], sQueryData);
 	#endif
-		
+
 	// Check if the request failed for whatever reason
 	if(!success || StrEqual(sQueryData, ""))
 	{
@@ -1511,10 +1601,10 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		CreateTimer(QUERY_DELAY, QueryAgain, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 		return;
 	}
-	
-	new Handle:hJson = DecodeJSON(sQueryData); 
+
+	new Handle:hJson = DecodeJSON(sQueryData);
 	new queryResult = -1;
-	
+
 	if (hJson != INVALID_HANDLE && JSONGetInteger(hJson, "duration", queryResult) && queryResult > -1) // result was valid json, and had valid data in it
 	{
 		#if defined SHOW_CONSOLE_MESSAGES
@@ -1539,7 +1629,7 @@ public Helper_GetAdStatus_Complete(any:userid, const String:sQueryData[], bool:s
 		return;
 	}
 	else
-	{ 
+	{
 		#if defined SHOW_CONSOLE_MESSAGES
 		PrintToConsole(client, "Query failed: Retrying...", sQueryData);
 		#endif
