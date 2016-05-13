@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.10"
+#define PLUGIN_VERSION "1.16.11"
 /*
 Changelog
 
+	1.16.11 <-> 2016 5/12 - Caelan Borowiec
+			- Added cvar to disable messages about RewardMe command
 	1.16.10 <-> 2016 4/12 - Caelan Borowiec
 			- Disabled the ClosePage call after 2 minute timer
 	1.16.09 <-> 2016 3/30 - Caelan Borowiec
@@ -370,6 +372,7 @@ new Handle:g_ConVarReviewOption;
 new Handle:g_ConVarReViewTime;
 new Handle:g_ConVarImmunityEnabled;
 new Handle:g_ConVarForceComplete;
+new Handle:g_ChatAdvert;
 
 new Handle:g_ConVarQuickPlayReg;
 new Handle:g_ConVarQuickPlayDisabled;
@@ -381,6 +384,7 @@ new bool:g_bIsQuickplayActive = false;
 new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
 new bool:g_bForceComplete = true;
+new bool:g_bChatAdverts = true;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
 
 // TF2 MotD reopening code
@@ -564,7 +568,8 @@ public OnPluginStart()
 	g_ConVarReviewOption = CreateConVar("sm_pinion_adverts_review", "1", "0: Review disabled. \n - 1: Ads show at start of round. \n - 2: Ads show at end of round. \n - 3: Ads show on death.'");
 	g_ConVarReViewTime = CreateConVar("sm_pinion_adverts_review_time", "20", "Duration (in minutes) until mid-map MOTD re-view", 0, true, 15.0);
 	g_ConVarImmunityEnabled = CreateConVar("sm_pinion_adverts_immunity_enable", "0", "Set to 1 to prevent displaying ads to users with access to 'advertisement_immunity'", 0, true, 0.0, true, 1.0);
-	g_ConVarForceComplete = CreateConVar("sm_pinion_adverts_force_complete", "1", "If set to zero, players may close the MOTD window without any wait period", 0, true, 0.0, true, 1.0);
+	g_ConVarForceComplete = CreateConVar("sm_pinion_adverts_force_complete", "1", "If set to 0, players may close the MOTD window without any wait period", 0, true, 0.0, true, 1.0);
+	g_ChatAdvert = CreateConVar("sm_pinion_adverts_chat_advert", "1", "Set to 0 to hide messages about the RewardMe command", 0, true, 0.0, true, 1.0);
 	AutoExecConfig(true, "pinion_adverts");  // Load and create config file with the cvars above
 
 	//If registered as cvars, these will be entered into the config file and/or not read correctly. So lets register them as commands:
@@ -585,6 +590,7 @@ public OnPluginStart()
 	RefreshCvarCache();
 	HookConVarChange(g_ConVar_Community, Event_CvarChange);
 	HookConVarChange(g_ConVarForceComplete, Event_CvarChange);
+	HookConVarChange(g_ChatAdvert, Event_CvarChange);
 
 	HookEvent("player_activate", Event_PlayerActivate);
 	HookEvent("player_disconnect", Event_PlayerDisconnected);
@@ -809,6 +815,7 @@ RefreshCvarCache()
 	g_ConVarQuickPlayDisabled = FindConVar("tf_server_identity_disable_quickplay");
 
 	g_bForceComplete = GetConVarBool(g_ConVarForceComplete);
+	g_bChatAdverts = GetConVarBool(g_ChatAdvert);
 
 	g_bIsQuickplayActive =  (g_ConVarQuickPlayReg != INVALID_HANDLE && g_ConVarQuickPlayDisabled != INVALID_HANDLE && GetConVarBool(g_ConVarQuickPlayReg) && !GetConVarBool(g_ConVarQuickPlayDisabled));
 }
@@ -1054,7 +1061,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 
 	// Death based advert messages
 	g_iNumDeaths[client]++;
-	if (g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1)  //every 7
+	if ((g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1) && g_bChatAdverts)  //every 7
 		PrintToChat(client, "\x01We've partnered with Unikrn to reward you just for gaming on our server. Type \x04!RewardMe\x01 now to claim your Unikoins.");
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
@@ -1087,6 +1094,9 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 
 public Action:BetUnikrnMsg(Handle timer, userid)
 {
+	if (!g_bChatAdverts)
+		return;
+	
 	new client = GetClientOfUserId(userid);
 	if (!client || !IsClientAuthorized(client))
 		return;
