@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.10"
+#define PLUGIN_VERSION "1.16.11"
 /*
 Changelog
 
+	1.16.11 <-> 2016 4/12 - Caelan Borowiec
+			- "joingame" command no longer works in CS:GO via FakeClientCommand. Replaced with similar "jointeam".
 	1.16.10 <-> 2016 4/12 - Caelan Borowiec
 			- Disabled the ClosePage call after 2 minute timer
 	1.16.09 <-> 2016 3/30 - Caelan Borowiec
@@ -1188,7 +1190,9 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSS, kGameCSGO:
+				case kGameCSGO:
+					FakeClientCommand(client, "jointeam");
+				case kGameCSS:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
 					ClientCommand(client, "changeteam");
