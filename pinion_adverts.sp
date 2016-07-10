@@ -21,17 +21,15 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.11"
+#define PLUGIN_VERSION "1.16.12"
 /*
 Changelog
 
-<<<<<<< HEAD
+	1.16.12 <-> 2016 7/10 - Caelan Borowiec
+			- Fixed issues with team selection menu
 	1.16.11 <-> 2016 5/12 - Caelan Borowiec
 			- Added cvar to disable messages about RewardMe command
-=======
-	1.16.11 <-> 2016 4/12 - Caelan Borowiec
 			- "joingame" command no longer works in CS:GO via FakeClientCommand. Replaced with similar "jointeam".
->>>>>>> refs/remotes/origin/master
 	1.16.10 <-> 2016 4/12 - Caelan Borowiec
 			- Disabled the ClosePage call after 2 minute timer
 	1.16.09 <-> 2016 3/30 - Caelan Borowiec
@@ -902,7 +900,9 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	if (client && !IsFakeClient(client))
 	{
 		if (g_Game == kGameCSGO)
-			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
+		{
+			//ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
+		}
 		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
 			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
@@ -1203,8 +1203,8 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSGO:
-					FakeClientCommand(client, "jointeam");
+				//case kGameCSGO:
+				//	FakeClientCommand(client, "jointeam");
 				case kGameCSS:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
