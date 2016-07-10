@@ -25,13 +25,9 @@ Configuration Variables: See pinion_adverts.cfg.
 /*
 Changelog
 
-<<<<<<< HEAD
 	1.16.11 <-> 2016 5/12 - Caelan Borowiec
 			- Added cvar to disable messages about RewardMe command
-=======
-	1.16.11 <-> 2016 4/12 - Caelan Borowiec
 			- "joingame" command no longer works in CS:GO via FakeClientCommand. Replaced with similar "jointeam".
->>>>>>> refs/remotes/origin/master
 	1.16.10 <-> 2016 4/12 - Caelan Borowiec
 			- Disabled the ClosePage call after 2 minute timer
 	1.16.09 <-> 2016 3/30 - Caelan Borowiec
