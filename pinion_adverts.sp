@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.11"
+#define PLUGIN_VERSION "1.16.12"
 /*
 Changelog
 
+	1.16.12 <-> 2016 7/10 - Caelan Borowiec
+			- Fixed issues with team selection menu in CS:GO
 	1.16.11 <-> 2016 5/12 - Caelan Borowiec
 			- Added cvar to disable messages about RewardMe command
 			- "joingame" command no longer works in CS:GO via FakeClientCommand. Replaced with similar "jointeam".
@@ -897,9 +899,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	new client = GetClientFromSerial(serial);
 	if (client && !IsFakeClient(client))
 	{
-		if (g_Game == kGameCSGO)
-			ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
-		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
+		if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
 			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
@@ -1199,8 +1199,6 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSGO:
-					FakeClientCommand(client, "jointeam");
 				case kGameCSS:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
