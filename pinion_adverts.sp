@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.12"
+#define PLUGIN_VERSION "1.16.13"
 /*
 Changelog
 
+	1.16.13 <-> 2016 7/26 - Caelan Borowiec
+		Updates to web path logic for game folders
 	1.16.12 <-> 2016 7/10 - Caelan Borowiec
 			- Fixed issues with team selection menu
 	1.16.11 <-> 2016 5/12 - Caelan Borowiec
@@ -917,20 +919,21 @@ stock GetGameWebDir(String:output[], size)
 	UTIL_StringToLower(szGameDir);
 
 	if (!strcmp(szGameDir, "csgo")
+		|| !strcmp(szGameDir, "tf2")
 		|| !strcmp(szGameDir, "nmrih"))
 		Format(output, size, "%s", szGameDir);
-	else if (!strcmp(szGameDir, "nucleardawn"))
-		Format(output, size, "nd");
-	else if (!strcmp(szGameDir, "hl2mp"))
-		Format(output, size, "hl2dm");
 	else if (!strcmp(szGameDir, "dod"))
 		Format(output, size, "dods");
+	else if (!strcmp(szGameDir, "garrysmod"))
+		Format(output, size, "gmod");
 	else if (!strcmp(szGameDir, "cstrike"))
 		Format(output, size, "css");
-	else if (!strcmp(szGameDir, "left4dead2"))
+	else if (!strcmp(szGameDir, "hl2mp"))
+		Format(output, size, "hl2dm");
+	else if (!strcmp(szGameDir, "left4dead2") || !strcmp(szGameDir, "left4dead"))
 		Format(output, size, "l4d2");
 	else
-		Format(output, size, "tf2", szGameDir);
+		Format(output, size, "mod", szGameDir);
 }
 
 // Extended ShowMOTDPanel with options for Command and Show
