@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.13"
+#define PLUGIN_VERSION "1.16.14"
 /*
 Changelog
 
+	1.16.14 <-> 2016 7/31 - Caelan Borowiec
+		TF2 folder path was incorrect
 	1.16.13 <-> 2016 7/26 - Caelan Borowiec
 		Updates to web path logic for game folders
 	1.16.12 <-> 2016 7/10 - Caelan Borowiec
@@ -919,9 +921,10 @@ stock GetGameWebDir(String:output[], size)
 	UTIL_StringToLower(szGameDir);
 
 	if (!strcmp(szGameDir, "csgo")
-		|| !strcmp(szGameDir, "tf2")
 		|| !strcmp(szGameDir, "nmrih"))
 		Format(output, size, "%s", szGameDir);
+	else if (!strcmp(szGameDir, "tf"))
+		Format(output, size, "tf2");
 	else if (!strcmp(szGameDir, "dod"))
 		Format(output, size, "dods");
 	else if (!strcmp(szGameDir, "garrysmod"))
