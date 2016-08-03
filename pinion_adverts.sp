@@ -21,12 +21,16 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.12"
+#define PLUGIN_VERSION "1.16.14"
 /*
 Changelog
 
+	1.16.14 <-> 2016 7/31 - Caelan Borowiec
+		TF2 folder path was incorrect
+	1.16.13 <-> 2016 7/26 - Caelan Borowiec
+		Updates to web path logic for game folders
 	1.16.12 <-> 2016 7/10 - Caelan Borowiec
-			- Fixed issues with team selection menu in CS:GO
+			- Fixed issues with team selection menu
 	1.16.11 <-> 2016 5/12 - Caelan Borowiec
 			- Added cvar to disable messages about RewardMe command
 			- "joingame" command no longer works in CS:GO via FakeClientCommand. Replaced with similar "jointeam".
@@ -899,7 +903,11 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 	new client = GetClientFromSerial(serial);
 	if (client && !IsFakeClient(client))
 	{
-		if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
+		if (g_Game == kGameCSGO)
+		{
+			//ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
+		}
+		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
 			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
@@ -915,18 +923,20 @@ stock GetGameWebDir(String:output[], size)
 	if (!strcmp(szGameDir, "csgo")
 		|| !strcmp(szGameDir, "nmrih"))
 		Format(output, size, "%s", szGameDir);
-	else if (!strcmp(szGameDir, "nucleardawn"))
-		Format(output, size, "nd");
-	else if (!strcmp(szGameDir, "hl2mp"))
-		Format(output, size, "hl2dm");
+	else if (!strcmp(szGameDir, "tf"))
+		Format(output, size, "tf2");
 	else if (!strcmp(szGameDir, "dod"))
 		Format(output, size, "dods");
+	else if (!strcmp(szGameDir, "garrysmod"))
+		Format(output, size, "gmod");
 	else if (!strcmp(szGameDir, "cstrike"))
 		Format(output, size, "css");
-	else if (!strcmp(szGameDir, "left4dead2"))
+	else if (!strcmp(szGameDir, "hl2mp"))
+		Format(output, size, "hl2dm");
+	else if (!strcmp(szGameDir, "left4dead2") || !strcmp(szGameDir, "left4dead"))
 		Format(output, size, "l4d2");
 	else
-		Format(output, size, "tf2", szGameDir);
+		Format(output, size, "mod", szGameDir);
 }
 
 // Extended ShowMOTDPanel with options for Command and Show
@@ -1199,6 +1209,8 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
+				//case kGameCSGO:
+				//	FakeClientCommand(client, "jointeam");
 				case kGameCSS:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
