@@ -24,6 +24,8 @@ new bool:g_bSockets = false;
 new bool:g_bSteamWorks = false;
 #endif
 
+enum DataPackPos: {};
+
 new String:g_szInterfaceIP[16];
 
 enum EHTTPMethodInternal
