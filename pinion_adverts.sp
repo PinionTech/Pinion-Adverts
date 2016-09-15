@@ -21,10 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.14"
+#define PLUGIN_VERSION "1.16.15"
 /*
 Changelog
 
+	1.16.15 <-> 2016 9/14 - Caelan Borowiec
+		Added support for BrainBread2
+		Fixed team joining issue with CSGO
 	1.16.14 <-> 2016 7/31 - Caelan Borowiec
 		TF2 folder path was incorrect
 	1.16.13 <-> 2016 7/26 - Caelan Borowiec
@@ -351,6 +354,7 @@ enum EGame
 	kGameGES,
 	kGameHidden,
 	kGameInsurgency,
+	kGameBrainBread2,
 };
 new const String:g_SupportedGames[EGame][] = {
 	"cstrike",
@@ -367,7 +371,8 @@ new const String:g_SupportedGames[EGame][] = {
 	"dab",
 	"gesource",
 	"hidden",
-	"insurgency"
+	"insurgency",
+	"brainbread2"
 };
 new EGame:g_Game = kGameUnsupported;
 
@@ -907,7 +912,7 @@ public Action:Event_DoPageHit(Handle:timer, any:serial)
 		{
 			//ShowMOTDPanelEx(client, MOTD_TITLE, "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, true);
 		}
-		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden)
+		else if (g_Game == kGameNMRIH || g_Game == kGameZPS || g_Game == kGameDAB || g_Game == kGameGES || g_Game == kGameHidden || g_Game == kGameBrainBread2)
 			ShowMOTDPanelEx(client, "", "about:blank", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		else if (g_Game != kGameTF2)
 			ShowMOTDPanelEx(client, "", "javascript:windowClosed()", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
@@ -1105,6 +1110,9 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 
 public Action:BetUnikrnMsg(Handle timer, userid)
 {
+	if (g_Game == kGameBrainBread2)
+		return;  // This game responds oddly to hints
+	
 	if (!g_bChatAdverts)
 		return;
 	
@@ -1209,9 +1217,7 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				//case kGameCSGO:
-				//	FakeClientCommand(client, "jointeam");
-				case kGameCSS:
+				case kGameCSGO, kGameCSS, kGameBrainBread2:
 					FakeClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
 					ClientCommand(client, "changeteam");
@@ -1565,6 +1571,7 @@ stock bool:BGameUsesVGUIEnum()
 		|| g_Game == kGameZPS
 		|| g_Game == kGameDAB
 		|| g_Game == kGameInsurgency
+		|| g_Game == kGameBrainBread2
 		;
 }
 
