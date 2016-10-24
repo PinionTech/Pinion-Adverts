@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.15"
+#define PLUGIN_VERSION "1.16.16"
 /*
 Changelog
 
+	1.16.16 <-> 2016 9/23 - Caelan Borowiec
+		Changed CSGO to use ClientCommand for 'joingame'
 	1.16.15 <-> 2016 9/14 - Caelan Borowiec
 		Added support for BrainBread2
 		Fixed team joining issue with CSGO
@@ -1217,8 +1219,10 @@ public Action:PageClosed(client, const String:command[], argc)
 			// Do the actual intended motd 'cmd' now that we're done capturing close.
 			switch (g_Game)
 			{
-				case kGameCSGO, kGameCSS, kGameBrainBread2:
+				case kGameCSS, kGameInsurgency, kGameBrainBread2:
 					FakeClientCommand(client, "joingame");
+				case kGameCSGO:
+					ClientCommand(client, "joingame");
 				case kGameDODS, kGameND:
 					ClientCommand(client, "changeteam");
 			}
