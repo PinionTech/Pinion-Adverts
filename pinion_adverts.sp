@@ -21,7 +21,7 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.16.16"
+#define PLUGIN_VERSION "1.17.1"
 /*
 Changelog
 
@@ -290,7 +290,7 @@ Changelog
 #define MAX_AUTH_LENGTH 64
 #define FEIGNDEATH (1 << 5)
 
-//#define SHOW_CONSOLE_MESSAGES
+#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
@@ -554,10 +554,13 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	return APLRes_Success;
 }
 
+new bool:bEnvUsesProtobuf = false;
 // Configure Environment
 public OnPluginStart()
 {
 	EasyHTTPCheckExtensions();
+	if (GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
+		bEnvUsesProtobuf = true;
 	if(!g_bSteamWorks && !g_bCURL && !g_bSockets && ! g_bSteamTools && g_Game != kGameCSGO && g_Game != kGameL4D2 && g_Game != kGameL4D)
 		SetFailState("For this plugin to run you need ONE of these extensions installed:\n\
 			SteamWorks - https://forums.alliedmods.net/showthread.php?t=229556\n\
@@ -1172,13 +1175,56 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], player
 		|| (GetState(client) != kAwaitingAd && GetState(client) != kViewingAd))
 		return Plugin_Continue;
 
-	decl String:buffer[64];
-	if (GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
-		PbReadString(self, "name", buffer, sizeof(buffer));
+	decl String:name[64];
+	if (bEnvUsesProtobuf)
+	{
+		// All new code
+		PbReadString(self, "name", name, sizeof(name));
+		if (strcmp(name, "info") != 0)
+			return Plugin_Continue;
+			
+		new Handle:subkey[3]; 
+		new subkeylookup[2];
+		decl String: title[128];
+		decl String: type[2];
+		decl String: message[1024];
+		
+		for (int i = 0; i < 3; i++)
+		{
+			subkey[i] = PbReadRepeatedMessage(self, "subkeys", i);
+			PbReadString(subkey[i], "name", name, sizeof(name));
+			
+			if (StrEqual(name, "type"))
+			{
+				subkeylookup[0] = i;
+				PbReadString(subkey[i], "str", type, sizeof(type));
+			}
+			else if (StrEqual(name, "msg"))
+			{
+				subkeylookup[1] = i;
+				PbReadString(subkey[i], "str", message, sizeof(message));
+			}
+			else if (StrEqual(name, "title"))
+			{
+				PbReadString(subkey[i], "str", title, sizeof(title));
+			}
+		}
+		
+		if (StrEqual(type, "1") && StrEqual(message, "motd"))
+		{
+			PbSetString(subkey[subkeylookup[0]], "str", "2");
+			PbSetString(subkey[subkeylookup[1]], "str", g_BaseURL);
+		}
+		
+		CloseHandle(subkey[0]);
+		CloseHandle(subkey[1]);
+		CloseHandle(subkey[2]);
+		return Plugin_Continue;
+	}
 	else
-		BfReadString(self, buffer, sizeof(buffer));
-
-	if (strcmp(buffer, "info") != 0)
+		BfReadString(self, name, sizeof(name));
+		
+	if (strcmp(name, "info") != 0)
 			return Plugin_Continue;
 
 	new Handle:pack = CreateDataPack();
