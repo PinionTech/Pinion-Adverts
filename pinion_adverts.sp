@@ -25,6 +25,9 @@ Configuration Variables: See pinion_adverts.cfg.
 /*
 Changelog
 
+	1.17.1 <-> 2017 1/18 - Caelan Borowiec
+		Complete motd handling overhaul for games that use protobufs (CS:GO)
+		- Fixes the longstanding issue with team selection
 	1.16.16 <-> 2016 9/23 - Caelan Borowiec
 		Changed CSGO to use ClientCommand for 'joingame'
 	1.16.15 <-> 2016 9/14 - Caelan Borowiec
@@ -290,7 +293,7 @@ Changelog
 #define MAX_AUTH_LENGTH 64
 #define FEIGNDEATH (1 << 5)
 
-#define SHOW_CONSOLE_MESSAGES
+//#define SHOW_CONSOLE_MESSAGES
 
 enum
 {
