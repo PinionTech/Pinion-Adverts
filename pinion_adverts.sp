@@ -21,10 +21,12 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.17.1"
+#define PLUGIN_VERSION "1.17.2"
 /*
 Changelog
 
+	1.17.2 <-> 2017 6/8 - Caelan Borowiec
+		Plugin now sets "sv_disable_motd 0" automatically in CS:GO.
 	1.17.1 <-> 2017 1/18 - Caelan Borowiec
 		Complete motd handling overhaul for games that use protobufs (CS:GO)
 		- Fixes the longstanding issue with team selection
@@ -703,6 +705,9 @@ public OnConfigsExecuted()
 
 	if (StrEqual(szInitialBaseURL, ""))
 		LogError("ConVar sm_pinion_adverts_community has not been set:  Please check your pinion_adverts config file.");
+	
+	if (g_Game == kGameCSGO)
+		SetConVarBool(FindConVar("sv_disable_motd"), false);
 }
 
 // Called after all plugins are loaded
