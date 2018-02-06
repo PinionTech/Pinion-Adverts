@@ -21,7 +21,7 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.17.2"
+#define PLUGIN_VERSION "1.17.3b"
 /*
 Changelog
 
@@ -402,6 +402,7 @@ new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
 new bool:g_bIsQuickplayActive = false;
 new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
+new bool:g_bCachePurged[MAXPLAYERS +1] = false;
 new bool:g_bForceComplete = true;
 new bool:g_bChatAdverts = true;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
@@ -1291,6 +1292,16 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
+	
+	if (!g_bCachePurged[client])
+	{
+		ShowMOTDPanelEx(client, "Loading", "https://f.unkrn.com/pinion/cachebust.html", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		g_bCachePurged[client]=true;
+		CreateTimer(1.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+		return Plugin_Stop;
+	}
+	g_bCachePurged[client]=false;
+	
 	new trigger = ReadPackCell(pack);
 	CloseHandle(pack);
 
