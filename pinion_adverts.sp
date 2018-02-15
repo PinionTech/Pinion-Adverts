@@ -1092,7 +1092,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	// Death based advert messages
 	g_iNumDeaths[client]++;
 	if ((g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1) && g_bChatAdverts)  //every 7
-		PrintToChat(client, "\x01We've partnered with Unikrn to reward you just for gaming on our server. Type \x04!RewardMe\x01 now to claim your Unikoins.");
+		PrintToChat(client, "\x01We've partnered with Unikrn to reward you just for gaming on our server. Type \x04!RewardMe\x01 now to claim your Unikoin Silver!");
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
 		return;
