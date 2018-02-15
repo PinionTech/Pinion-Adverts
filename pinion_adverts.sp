@@ -21,10 +21,13 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.17.2"
+#define PLUGIN_VERSION "1.17.3"
 /*
 Changelog
 
+	1.17.3 <-> 2018 2/14 - Caelan Borowiec
+		Added a workaround to deal with bowser caching issues.
+		Updated RewardMe prompt message
 	1.17.2 <-> 2017 6/8 - Caelan Borowiec
 		Plugin now sets "sv_disable_motd 0" automatically in CS:GO.
 	1.17.1 <-> 2017 1/18 - Caelan Borowiec
@@ -402,6 +405,7 @@ new g_iDynamicDisplayTime[MAXPLAYERS +1] = 0;
 new bool:g_bIsQuickplayActive = false;
 new bool:g_bIsMapActive = false;
 new bool:g_bIsQueryRunning[MAXPLAYERS +1] = false;
+new bool:g_bCachePurged[MAXPLAYERS +1] = false;
 new bool:g_bForceComplete = true;
 new bool:g_bChatAdverts = true;
 new Float:g_fPlayerCooldownStartedAt[MAXPLAYERS +1] = 0.0;
@@ -1091,7 +1095,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	// Death based advert messages
 	g_iNumDeaths[client]++;
 	if ((g_iNumDeaths[client] % 7 == 0 || g_iNumDeaths[client] == 1) && g_bChatAdverts)  //every 7
-		PrintToChat(client, "\x01We've partnered with Unikrn to reward you just for gaming on our server. Type \x04!RewardMe\x01 now to claim your Unikoins.");
+		PrintToChat(client, "\x01We've partnered with Unikrn to reward you just for gaming on our server. Type \x04!RewardMe\x01 now to claim your Unikoin Silver!");
 
 	if (GetConVarInt(g_ConVarReviewOption) != 3)
 		return;
@@ -1291,6 +1295,16 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
+	
+	if (!g_bCachePurged[client])
+	{
+		ShowMOTDPanelEx(client, "Loading", "https://f.unkrn.com/pinion/cachebust.html", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
+		g_bCachePurged[client]=true;
+		CreateTimer(1.0, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
+		return Plugin_Stop;
+	}
+	g_bCachePurged[client]=false;
+	
 	new trigger = ReadPackCell(pack);
 	CloseHandle(pack);
 
