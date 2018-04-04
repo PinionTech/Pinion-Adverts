@@ -21,12 +21,14 @@ Configuration Variables: See pinion_adverts.cfg.
 ------------------------------------------------------------------------------------------------------------------------------------
 */
 
-#define PLUGIN_VERSION "1.17.3"
+#define PLUGIN_VERSION "1.17.4"
 /*
 Changelog
 
+	1.17.4 <-> 2018 4/4 - Caelan Borowiec
+		Fixed trying to open a motd panel for disconnected/invalid clients in some instances
 	1.17.3 <-> 2018 2/14 - Caelan Borowiec
-		Added a workaround to deal with bowser caching issues.
+		Added a workaround to deal with browser caching issues.
 		Updated RewardMe prompt message
 	1.17.2 <-> 2017 6/8 - Caelan Borowiec
 		Plugin now sets "sv_disable_motd 0" automatically in CS:GO.
@@ -642,7 +644,7 @@ public OnPluginStart()
 public Action:FuncChatHook(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	decl String:strChat[256]; 
+	decl String:strChat[256];
 	GetEventString(event, "text", strChat, sizeof(strChat));
 
 	if (StrContains(strChat, "!RewardMe", false) == 0)
@@ -653,7 +655,7 @@ public Action:FuncChatHook(Handle:event, const String:name[], bool:dontBroadcast
 		WritePackCell(pack, AD_TRIGGER_PLAYER_BET);
 		CreateTimer(0.1, LoadPage, pack, TIMER_FLAG_NO_MAPCHANGE);
 	}
-	return Plugin_Continue; 
+	return Plugin_Continue;
 }
 
 public Action:OldCvarCatcher(args)
@@ -709,7 +711,7 @@ public OnConfigsExecuted()
 
 	if (StrEqual(szInitialBaseURL, ""))
 		LogError("ConVar sm_pinion_adverts_community has not been set:  Please check your pinion_adverts config file.");
-	
+
 	if (g_Game == kGameCSGO)
 		SetConVarBool(FindConVar("sv_disable_motd"), false);
 }
@@ -885,7 +887,7 @@ SetupReView()
 	{
 		HookEvent("player_first_spawn", Event_FirstSpawn);
 	}
-	
+
 	HookEvent("player_spawn", Event_PlayerSpawn);
 
 	HookEventEx("round_start", Event_HandleReview, EventHookMode_PostNoCopy);
@@ -996,7 +998,7 @@ public Event_FirstSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || IsFakeClient(client) || !IsClientInGame(client))
 		return;
-		
+
 
 	new Handle:pack = CreateDataPack();
 	WritePackCell(pack, GetClientSerial(client));
@@ -1011,9 +1013,9 @@ public Event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (!client || IsFakeClient(client) || !IsClientInGame(client))
 		return;
-	
+
 	g_iNumSpawns[client]++;
-	
+
 	if (g_iNumSpawns[client] == 1)
 		CreateTimer(10.0, BetUnikrnMsg, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 
@@ -1129,10 +1131,10 @@ public Action:BetUnikrnMsg(Handle timer, userid)
 {
 	if (g_Game == kGameBrainBread2)
 		return;  // This game responds oddly to hints
-	
+
 	if (!g_bChatAdverts)
 		return;
-	
+
 	new client = GetClientOfUserId(userid);
 	if (!client || !IsClientAuthorized(client))
 		return;
@@ -1194,18 +1196,18 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], player
 		PbReadString(self, "name", name, sizeof(name));
 		if (strcmp(name, "info") != 0)
 			return Plugin_Continue;
-			
-		new Handle:subkey[3]; 
+
+		new Handle:subkey[3];
 		new subkeylookup[2];
 		decl String: title[128];
 		decl String: type[2];
 		decl String: message[1024];
-		
+
 		for (int i = 0; i < 3; i++)
 		{
 			subkey[i] = PbReadRepeatedMessage(self, "subkeys", i);
 			PbReadString(subkey[i], "name", name, sizeof(name));
-			
+
 			if (StrEqual(name, "type"))
 			{
 				subkeylookup[0] = i;
@@ -1221,13 +1223,13 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], player
 				PbReadString(subkey[i], "str", title, sizeof(title));
 			}
 		}
-		
+
 		if (StrEqual(type, "1") && StrEqual(message, "motd"))
 		{
 			PbSetString(subkey[subkeylookup[0]], "str", "2");
 			PbSetString(subkey[subkeylookup[1]], "str", g_BaseURL);
 		}
-		
+
 		CloseHandle(subkey[0]);
 		CloseHandle(subkey[1]);
 		CloseHandle(subkey[2]);
@@ -1235,7 +1237,7 @@ public Action:OnMsgVGUIMenu(UserMsg:msg_id, Handle:self, const players[], player
 	}
 	else
 		BfReadString(self, name, sizeof(name));
-		
+
 	if (strcmp(name, "info") != 0)
 			return Plugin_Continue;
 
@@ -1295,8 +1297,8 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 {
 	ResetPack(pack);
 	new client = GetClientFromSerial(ReadPackCell(pack));
-	
-	if (!g_bCachePurged[client])
+
+	if (client && !g_bCachePurged[client])
 	{
 		ShowMOTDPanelEx(client, "Loading", "https://f.unkrn.com/pinion/cachebust.html", MOTDPANEL_TYPE_URL, MOTDPANEL_CMD_NONE, false);
 		g_bCachePurged[client]=true;
@@ -1304,7 +1306,7 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		return Plugin_Stop;
 	}
 	g_bCachePurged[client]=false;
-	
+
 	new trigger = ReadPackCell(pack);
 	CloseHandle(pack);
 
@@ -1356,12 +1358,12 @@ public Action:LoadPage(Handle:timer, Handle:pack)
 		if (bClientHasImmunity)
 			Format(szURL, sizeof(szURL), "%s&im=1", szURL);
 		Format(szURL, sizeof(szURL), "%s&pv=%s&tr=%i", szURL, PLUGIN_VERSION, trigger);
-		
+
 		if (g_Game == kGameCSGO && trigger != _:AD_TRIGGER_CONNECT)
 		{
 			ReplaceString(szURL, sizeof(szURL), "http://motd.pinion.gg/motd/", "http://bin.pinion.gg/bin/pogcsgo/index.html?");
 		}
-		
+
 		KvSetString(kv, "msg",	szURL);
 
 		#if defined SHOW_CONSOLE_MESSAGES
